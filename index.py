@@ -21,7 +21,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-MODEL_PATH = Path("multiclass_anomaly_model.pkl")
+MODEL_PATH = Path("./models/lgbm_anomaly_multi.pkl")
 
 DEFAULT_RECORD: Dict[str, Any] = {
     "issuer_bank": "Moldindconbank",
