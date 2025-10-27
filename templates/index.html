@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Анализ аномалий в CSV</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            color: #1f2933;
+        }
+        .container {
+            max-width: 960px;
+            margin: 40px auto;
+            padding: 24px;
+            background: #ffffff;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+            border-radius: 12px;
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 28px;
+        }
+        form {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        input[type="file"] {
+            flex: 1;
+        }
+        button {
+            padding: 10px 18px;
+            background-color: #2563eb;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        .alert.error {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+        .alert.info {
+            background-color: #dbf4ff;
+            color: #0d47a1;
+        }
+        .card {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 22px;
+        }
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 22px;
+        }
+        pre {
+            background: #111827;
+            color: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        img {
+            max-width: 100%;
+            display: block;
+            border-radius: 8px;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        table.preview-table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        table.preview-table th,
+        table.preview-table td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        table.preview-table th {
+            background-color: #e5e7eb;
+        }
+        .probability-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .probability-list li {
+            padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 13px;
+            background: #e5e7eb;
+            color: #111827;
+            margin-left: 8px;
+        }
+        .tag.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .tag.warn {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .tag.highlight {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            gap: 6px;
+        }
+        .field-name {
+            font-weight: 600;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .form-field select,
+        .form-field input {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #cbd5f5;
+            font-size: 14px;
+        }
+        .form-field input:focus,
+        .form-field select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+        }
+        .field-meta {
+            color: #64748b;
+            font-size: 12px;
+        }
+        .form-actions {
+            text-align: right;
+        }
+        .form-hint {
+            margin-bottom: 12px;
+            color: #475569;
+            font-size: 14px;
+        }
+        details.csv-upload {
+            margin-top: 18px;
+        }
+        details.csv-upload summary {
+            cursor: pointer;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Загрузка CSV и анализ аномалий</h1>
+    <form method="post" action="/analyze" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".csv" required>
+        <button type="submit">Загрузить и проанализировать</button>
+    </form>
+
+    {% if error %}
+        <div class="alert error">{{ error }}</div>
+    {% endif %}
+
+    {% if notifications %}
+        {% for note in notifications %}
+            <div class="alert info">{{ note }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if result %}
+        <div class="card">
+            <p><strong>Файл:</strong> {{ filename or "загруженный файл" }}</p>
+            <p><strong>Размер данных:</strong> {{ result.records }} строк × {{ result.columns }} колонок</p>
+        </div>
+
+        <div class="card">
+            <h2>Предпросмотр данных (первые 10 строк)</h2>
+            <div class="table-wrapper">
+                {{ result.preview_html | safe }}
+            </div>
+        </div>
+
+        {% if result.prediction_counts %}
+            <div class="card">
+                <h2>Распределение предсказанных классов</h2>
+                <ul class="probability-list">
+                    {% for label, count in result.prediction_counts.items() %}
+                        <li>{{ label }} — {{ count }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        {% if result.average_probabilities %}
+            <div class="card">
+                <h2>Средние вероятности по классам</h2>
+                <ul class="probability-list">
+                    {% for label, prob in result.average_probabilities.items() %}
+                        <li>{{ label }} — {{ "%.2f"|format(prob * 100) }}%</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        {% if result.classification_report %}
+            <div class="card">
+                <h2>Классификационный отчет (anomaly_type)</h2>
+                <pre>{{ result.classification_report }}</pre>
+            </div>
+        {% endif %}
+
+        {% if result.confusion_image %}
+            <div class="card">
+                <h2>Confusion Matrix</h2>
+                <img src="data:image/png;base64,{{ result.confusion_image }}" alt="Confusion Matrix">
+            </div>
+        {% endif %}
+    {% endif %}
+
+    {% if importance_image %}
+        <div class="card">
+            <h2>Важность признаков модели</h2>
+            <img src="data:image/png;base64,{{ importance_image }}" alt="Feature Importance">
+        </div>
+    {% endif %}
+
+    {% if top_features %}
+        <div class="card">
+            <h2>Топ признаков (Gain)</h2>
+            <ul class="probability-list">
+                {% for item in top_features %}
+                    <li>{{ item.feature }} — {{ "%.2f"|format(item.importance) }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if model_ready %}
+        <div class="card">
+            <h2>Прогноз для одной транзакции</h2>
+            <p class="form-hint">Выберите значения признаков из выпадающих списков (важные признаки отмечены бэйджем «топ»). Значения подставлены по умолчанию из загруженного датасета.</p>
+            <form method="post" action="/predict-form">
+                <div class="form-grid">
+                    {% for field in input_metadata %}
+                        <label class="form-field">
+                            <span class="field-name">
+                                {{ field.name.replace('_', ' ') }}
+                                {% if field.is_top_feature %}
+                                    <span class="tag highlight">топ</span>
+                                {% endif %}
+                            </span>
+                            {% if field.input_type == "select" %}
+                                <select name="{{ field.name }}">
+                                    {% for choice in field.choices %}
+                                        <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% elif field.input_type == "number" %}
+                                <input type="number" name="{{ field.name }}" value="{{ field.value }}" step="{{ field.step }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
+                                {% if field.suggestions %}
+                                    <datalist id="{{ field.datalist_id }}">
+                                        {% for suggestion in field.suggestions %}
+                                            <option value="{{ suggestion }}"></option>
+                                        {% endfor %}
+                                    </datalist>
+                                {% endif %}
+                            {% else %}
+                                <input type="text" name="{{ field.name }}" value="{{ field.value }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
+                                {% if field.suggestions %}
+                                    <datalist id="{{ field.datalist_id }}">
+                                        {% for suggestion in field.suggestions %}
+                                            <option value="{{ suggestion }}"></option>
+                                        {% endfor %}
+                                    </datalist>
+                                {% endif %}
+                            {% endif %}
+                            {% if field.importance_score %}
+                                <small class="field-meta">Важность: {{ "%.2f"|format(field.importance_score) }}</small>
+                            {% endif %}
+                        </label>
+                    {% endfor %}
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Получить прогноз</button>
+                </div>
+            </form>
+            <details class="csv-upload">
+                <summary>Альтернатива: загрузить CSV с одной записью</summary>
+                <form method="post" action="/predict" enctype="multipart/form-data" style="margin-top: 12px;">
+                    <input type="file" name="file" accept=".csv" required>
+                    <button type="submit">Проанализировать CSV</button>
+                </form>
+            </details>
+            {% if prediction_error %}
+                <div class="alert error">{{ prediction_error }}</div>
+            {% endif %}
+
+            {% if prediction %}
+                <div class="table-wrapper" style="margin-top:16px;">
+                    {{ prediction.preview_html | safe }}
+                </div>
+
+                <p><strong>Тип аномалии:</strong> {{ prediction.anomaly_label }}</p>
+                <p><strong>Вероятность класса:</strong> {{ "%.2f"|format(prediction.predicted_probability * 100) }}%</p>
+                <ul class="probability-list">
+                    {% for item in prediction.anomaly_probabilities %}
+                        <li>{{ item.label }} — {{ "%.2f"|format(item.probability * 100) }}%</li>
+                    {% endfor %}
+                </ul>
+
+                {% if prediction.suspicious is not none %}
+                    <p>
+                        <strong>Подозрительность:</strong>
+                        {% if prediction.suspicious %}
+                            Да<span class="tag warn">{{ "%.1f"|format(prediction.suspicious_probability * 100) }}%</span>
+                        {% else %}
+                            Нет<span class="tag success">{{ "%.1f"|format((1 - prediction.suspicious_probability) * 100) }}%</span>
+                        {% endif %}
+                    </p>
+                {% else %}
+                    <p><strong>Подозрительность:</strong> модель не обучена (нет таргета).</p>
+                {% endif %}
+
+                {% if prediction.preprocessing_notes %}
+                    {% for prep_note in prediction.preprocessing_notes %}
+                        <div class="alert info">{{ prep_note }}</div>
+                    {% endfor %}
+                {% endif %}
+
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+</body>
+</html>
