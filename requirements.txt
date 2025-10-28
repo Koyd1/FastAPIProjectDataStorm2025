@@ -10,4 +10,7 @@ joblib
 jinja2
 python-multipart
 requests
-
+supabase
+psycopg2-binary
+python-dotenv
+psycopg2

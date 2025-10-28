@@ -670,6 +670,54 @@
                 {% endif %}
             </section>
         {% endif %}
+
+        {% if rf_visuals %}
+            <section class="card" id="global-insights">
+                <div class="section-heading">
+                    <h2>5. Кластеризация (Random Forest)</h2>
+                    <p>Интерактивные инсайты по всем загруженным наборам данных. Кластеры формируются заново после каждой загрузки.</p>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <label>Объём выборки</label>
+                        <span>{{ rf_visuals.sample_size }}</span>
+                    </div>
+                    {% if rf_visuals.class_counts %}
+                        <div class="metric">
+                            <label>Классы</label>
+                            <span>{{ rf_visuals.class_counts|length }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+                {% if rf_visuals.class_counts %}
+                    <div class="card-surface">
+                        <h3>Распределение по классам (история)</h3>
+                        <ul class="simple-list">
+                            {% for label, count in rf_visuals.class_counts.items() %}
+                                <li>
+                                    <span>{{ label }}</span>
+                                    <span>{{ count }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                <div class="feature-grid">
+                    {% if rf_visuals.cluster_image %}
+                        <div class="card-surface">
+                            <h3>Кластеры (PCA проекция)</h3>
+                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.cluster_image }}" alt="Random forest clusters">
+                        </div>
+                    {% endif %}
+                    {% if rf_visuals.feature_image %}
+                        <div class="card-surface">
+                            <h3>Важность признаков</h3>
+                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.feature_image }}" alt="Random forest feature importances">
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
     </main>
 </div>
 </body>
