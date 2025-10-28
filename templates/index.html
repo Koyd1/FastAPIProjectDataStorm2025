@@ -482,6 +482,9 @@
                 <input type="file" name="file" accept=".csv" required>
                 <button class="button" type="submit">Загрузить и проанализировать</button>
             </form>
+            <form method="get" action="/export-pdf">
+                <button class="button" type="submit">📄 Экспорт в PDF</button>
+            </form>
             {% if error %}
                 <div class="alert error">{{ error }}</div>
             {% endif %}

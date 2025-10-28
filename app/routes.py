@@ -11,6 +11,17 @@ from .csv_utils import read_uploaded_dataframe
 from .forms import build_context, parse_form_to_record
 from .supabase_service import ingest_dataset
 
+from fastapi.responses import FileResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
+import os
+import tempfile
+from bs4 import BeautifulSoup
 
 def register_routes(app) -> None:
     templates = app.state.templates
@@ -350,3 +361,120 @@ def register_routes(app) -> None:
                 form_values=form_dict,
             ),
         )
+
+    MAX_CELL_LENGTH = 50  # максимальное количество символов в ячейке
+
+    def truncate_text(text: str, max_len: int = MAX_CELL_LENGTH) -> str:
+        if len(text) > max_len:
+            return text[:max_len-3] + "..."
+        return text
+
+    @app.get("/export-pdf")
+    async def export_pdf(request: Request):
+        store = request.app.state.store
+        result = store.last_analysis
+        if not result:
+            return HTMLResponse("<h3>Нет данных для экспорта</h3>")
+
+        font_path = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
+        if not os.path.exists(font_path):
+            return HTMLResponse("<h3>Файл шрифта DejaVuSans.ttf не найден. Поместите его в папку /fonts рядом с routes.py</h3>")
+        pdfmetrics.registerFont(TTFont("DejaVuSans", font_path))
+
+        tmp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        doc = SimpleDocTemplate(tmp_pdf.name, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name="TitleRu", fontName="DejaVuSans", fontSize=18, leading=22, alignment=1, textColor=colors.darkblue))
+        styles.add(ParagraphStyle(name="Heading", fontName="DejaVuSans", fontSize=14, leading=18, textColor=colors.darkred))
+        styles.add(ParagraphStyle(name="Body", fontName="DejaVuSans", fontSize=10, leading=12))
+
+        story = []
+
+        # === Заголовок ===
+        story.append(Paragraph("📊 Отчёт по загруженному датасету", styles["TitleRu"]))
+        story.append(Spacer(1, 16))
+
+        # === Основные метрики ===
+        story.append(Paragraph("Основные метрики загруженного набора:", styles["Heading"]))
+        data = [["Показатель", "Значение"]]
+        data.append(["Объём строк", truncate_text(str(result.get("records", "-")))])
+        data.append(["Количество признаков", truncate_text(str(result.get("columns", "-")))])
+        if result.get("prediction_counts"):
+            data.append(["Количество классов модели", truncate_text(str(len(result["prediction_counts"])))])
+
+        metrics_table = Table([[Paragraph(str(c), styles["Body"]) for c in row] for row in data],
+                            hAlign="LEFT", colWidths=[200, 250])
+        metrics_table.setStyle(TableStyle([
+            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+            ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
+            ("ALIGN", (0,0), (-1,0), "CENTER"),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ]))
+        story.append(metrics_table)
+        story.append(Spacer(1, 12))
+
+        # === Предпросмотр данных (первые 10 строк) ===
+        if result.get("preview_html"):
+            story.append(Paragraph("Предпросмотр данных (первые 10 строк):", styles["Heading"]))
+            soup = BeautifulSoup(result["preview_html"], "html.parser")
+            rows = soup.find_all("tr")
+            table_data = []
+            for row in rows[:11]:  # заголовок + 10 строк
+                cols = [truncate_text(c.get_text(strip=True)) for c in row.find_all(["th","td"])]
+                cols = [Paragraph(c, styles["Body"]) for c in cols]
+                table_data.append(cols)
+
+            if table_data:
+                num_cols = len(table_data[0])
+                col_widths = [480/num_cols]*num_cols
+                preview_table = Table(table_data, repeatRows=1, colWidths=col_widths)
+                preview_table.setStyle(TableStyle([
+                    ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
+                    ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+                    ("VALIGN", (0,0), (-1,-1), "TOP"),
+                ]))
+                story.append(KeepTogether(preview_table))
+                story.append(Spacer(1, 12))
+
+        # Распределение классов
+        if result.get("prediction_counts"):
+            story.append(PageBreak())
+            story.append(Paragraph("Распределение классов модели:", styles["Heading"]))
+            class_data = [["Класс", "Количество"]]
+            for cls, cnt in result["prediction_counts"].items():
+                class_data.append([str(cls), str(cnt)])
+            class_table = Table(class_data, hAlign="LEFT", colWidths=[200, 200])
+            class_table.setStyle(TableStyle([
+                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+                ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
+                ("FONTNAME", (0,0), (-1,-1), "DejaVuSans"),
+                ("FONTSIZE", (0,0), (-1,-1), 10),
+                ("ALIGN", (0,0), (-1,0), "CENTER"),
+                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ]))
+            story.append(class_table)
+            story.append(Spacer(1, 12))
+
+        # === Добавляем разрыв страницы перед средними вероятностями ===
+        if result.get("average_probabilities"):
+            story.append(PageBreak())
+            story.append(Paragraph("Средние вероятности по классам:", styles["Heading"]))
+            prob_data = [["Класс", "Средняя вероятность"]]
+            for label, prob in result["average_probabilities"].items():
+                prob_data.append([truncate_text(str(label)), f"{prob*100:.2f}%"])
+
+            prob_table = Table([[Paragraph(str(c), styles["Body"]) for c in row] for row in prob_data],
+                            hAlign="LEFT", colWidths=[200, 250])
+            prob_table.setStyle(TableStyle([
+                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+                ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
+                ("ALIGN", (0,0), (-1,0), "CENTER"),
+                ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ]))
+            story.append(prob_table)
+            story.append(Spacer(1, 12))
+
+        doc.build(story)
+        return FileResponse(tmp_pdf.name, filename="dataset_analysis.pdf", media_type="application/pdf")
+
