@@ -2,363 +2,675 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Анализ аномалий в CSV</title>
+    <title>Анализ аномалий в транзакциях</title>
     <style>
+        :root {
+            color-scheme: light;
+            --page-bg: #f1f5f9;
+            --surface: #ffffff;
+            --surface-muted: #f8fafc;
+            --surface-subtle: #eef2f7;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --success: #16a34a;
+            --warning: #f97316;
+            --danger: #dc2626;
+            --text-primary: #0f172a;
+            --text-muted: #475569;
+            --border-color: rgba(148, 163, 184, 0.35);
+            --shadow-md: 0 18px 42px rgba(15, 23, 42, 0.12);
+            --shadow-sm: 0 10px 24px rgba(15, 23, 42, 0.08);
+            font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: #f4f6f8;
             margin: 0;
-            color: #1f2933;
+            background: var(--page-bg);
+            color: var(--text-primary);
+            line-height: 1.5;
         }
-        .container {
-            max-width: 960px;
-            margin: 40px auto;
-            padding: 24px;
-            background: #ffffff;
-            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
-            border-radius: 12px;
+
+        .layout {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
         }
-        h1 {
-            margin-top: 0;
+
+        .masthead {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.64));
+            color: #f8fafc;
+            padding: 32px;
+            border-radius: 22px;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            align-items: flex-start;
+        }
+
+        .masthead__brand {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+        }
+
+        .brand-mark {
+            width: 60px;
+            height: 60px;
+            border-radius: 20px;
+            background: rgba(15, 23, 42, 0.3);
+            display: grid;
+            place-items: center;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: 0.08em;
+        }
+
+        .masthead__brand h1 {
+            margin: 0 0 8px;
             font-size: 28px;
         }
-        form {
+
+        .masthead__brand p {
+            margin: 0;
+            max-width: 600px;
+            color: rgba(248, 250, 252, 0.85);
+        }
+
+        .masthead__status {
             display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .content {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 28px 32px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .card-accent {
+            border-top: 4px solid var(--accent);
+        }
+
+        .section-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .section-heading h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .section-heading p {
+            margin: 0;
+            color: var(--text-muted);
+        }
+
+        .upload-form {
+            display: flex;
+            flex-wrap: wrap;
             gap: 16px;
             align-items: center;
-            margin-bottom: 24px;
         }
-        input[type="file"] {
-            flex: 1;
+
+        .upload-form input[type="file"] {
+            flex: 1 1 260px;
         }
-        button {
-            padding: 10px 18px;
-            background-color: #2563eb;
+
+        .button {
+            background: var(--accent);
             color: #ffffff;
             border: none;
-            border-radius: 6px;
+            border-radius: 10px;
+            padding: 12px 22px;
+            font-weight: 600;
             cursor: pointer;
             font-size: 15px;
+            transition: background 0.2s ease, transform 0.2s ease;
         }
-        button:hover {
-            background-color: #1d4ed8;
+
+        .button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
         }
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-        }
-        .alert.error {
-            background-color: #fee2e2;
-            color: #b91c1c;
-        }
-        .alert.info {
-            background-color: #dbf4ff;
-            color: #0d47a1;
-        }
-        .card {
-            background: #f8fafc;
-            border-radius: 10px;
-            padding: 18px;
-            margin-bottom: 22px;
-        }
-        .card h2 {
-            margin-top: 0;
-            margin-bottom: 12px;
-            font-size: 22px;
-        }
-        pre {
-            background: #111827;
-            color: #f9fafb;
-            padding: 16px;
-            border-radius: 8px;
-            overflow-x: auto;
-        }
-        img {
-            max-width: 100%;
-            display: block;
-            border-radius: 8px;
-        }
-        .table-wrapper {
-            overflow-x: auto;
-        }
-        table.preview-table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        table.preview-table th,
-        table.preview-table td {
-            border: 1px solid #d1d5db;
-            padding: 8px 10px;
-            text-align: left;
-        }
-        table.preview-table th {
-            background-color: #e5e7eb;
-        }
-        .probability-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .probability-list li {
-            padding: 6px 0;
-            border-bottom: 1px solid #e2e8f0;
-        }
+
         .tag {
-            display: inline-block;
-            padding: 2px 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
             border-radius: 999px;
             font-size: 13px;
-            background: #e5e7eb;
-            color: #111827;
-            margin-left: 8px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            background: rgba(15, 23, 42, 0.08);
+            color: var(--text-primary);
         }
-        .tag.success {
-            background: #dcfce7;
-            color: #166534;
+
+        .tag.status-success {
+            background: rgba(187, 247, 208, 0.75);
+            color: var(--success);
         }
-        .tag.warn {
-            background: #fee2e2;
-            color: #b91c1c;
+
+        .tag.status-warn {
+            background: rgba(254, 215, 170, 0.75);
+            color: var(--warning);
         }
-        .tag.highlight {
-            background: #e0f2fe;
-            color: #0369a1;
+
+        .tag.file {
+            background: rgba(224, 231, 255, 0.85);
+            color: #3730a3;
         }
+
+        .alert {
+            padding: 14px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .alert.error {
+            background: rgba(252, 165, 165, 0.35);
+            color: var(--danger);
+        }
+
+        .alert.info {
+            background: rgba(191, 219, 254, 0.45);
+            color: #0f172a;
+        }
+
+        .alert.success {
+            background: rgba(187, 247, 208, 0.45);
+            color: var(--success);
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .metric-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+
+        .metric {
+            background: var(--surface-muted);
+            border-radius: 14px;
+            padding: 16px 18px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .metric label {
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .metric span {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .card-surface {
+            background: var(--surface-muted);
+            border-radius: 16px;
+            padding: 20px 22px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card-surface h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .table-wrapper {
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: auto;
+            max-height: 380px;
+            background: var(--surface);
+        }
+
+        .table-wrapper--compact {
+            max-height: 240px;
+        }
+
+        table.preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        table.preview-table th,
+        table.preview-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            text-align: left;
+        }
+
+        table.preview-table th {
+            background: var(--surface-subtle);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.04em;
+        }
+
+        .simple-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .simple-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+        }
+
+        pre {
+            margin: 0;
+            padding: 18px;
+            background: #111827;
+            color: #f8fafc;
+            border-radius: 12px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+
+        .chart {
+            max-width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .feature-grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+
         .form-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 16px;
+            gap: 18px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
+
         .form-field {
             display: flex;
             flex-direction: column;
-            font-size: 13px;
-            gap: 6px;
+            gap: 8px;
         }
-        .field-name {
+
+        .form-field label {
+            font-size: 13px;
             font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--text-muted);
             display: flex;
-            gap: 6px;
+            gap: 8px;
             align-items: center;
         }
+
         .form-field select,
         .form-field input {
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid #cbd5f5;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
             font-size: 14px;
+            transition: border 0.2s ease, box-shadow 0.2s ease;
         }
-        .form-field input:focus,
-        .form-field select:focus {
+
+        .form-field select:focus,
+        .form-field input:focus {
             outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
+
+        .badge-top {
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(59, 130, 246, 0.18);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
         .field-meta {
-            color: #64748b;
             font-size: 12px;
+            color: var(--text-muted);
         }
-        .form-actions {
-            text-align: right;
-        }
-        .form-hint {
-            margin-bottom: 12px;
-            color: #475569;
-            font-size: 14px;
-        }
+
         details.csv-upload {
-            margin-top: 18px;
+            border-radius: 12px;
+            border: 1px dashed var(--border-color);
+            padding: 14px 16px;
+            background: var(--surface-muted);
         }
+
         details.csv-upload summary {
             cursor: pointer;
             font-weight: 600;
-            margin-bottom: 8px;
+        }
+
+        .prediction-summary {
+            display: grid;
+            gap: 16px;
+        }
+
+        .prediction-summary strong {
+            font-size: 15px;
+        }
+
+        @media (max-width: 860px) {
+            .masthead {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .masthead__status {
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>Загрузка CSV и анализ аномалий</h1>
-    <form method="post" action="/analyze" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".csv" required>
-        <button type="submit">Загрузить и проанализировать</button>
-    </form>
-
-    {% if error %}
-        <div class="alert error">{{ error }}</div>
-    {% endif %}
-
-    {% if notifications %}
-        {% for note in notifications %}
-            <div class="alert info">{{ note }}</div>
-        {% endfor %}
-    {% endif %}
-
-    {% if result %}
-        <div class="card">
-            <p><strong>Файл:</strong> {{ filename or "загруженный файл" }}</p>
-            <p><strong>Размер данных:</strong> {{ result.records }} строк × {{ result.columns }} колонок</p>
-        </div>
-
-        <div class="card">
-            <h2>Предпросмотр данных (первые 10 строк)</h2>
-            <div class="table-wrapper">
-                {{ result.preview_html | safe }}
+<div class="layout">
+    <header class="masthead">
+        <div class="masthead__brand">
+            <span class="brand-mark">AA</span>
+            <div>
+                <h1>Цифровой анализ аномалий</h1>
+                <p>Загружайте CSV с транзакциями, изучайте предсказанные классы, важность признаков и получайте одиночные прогнозы буквально за пару кликов.</p>
             </div>
         </div>
+        <div class="masthead__status">
+            {% if model_ready %}
+                <span class="tag status-success">Модель загружена</span>
+            {% else %}
+                <span class="tag status-warn">Модель не готова</span>
+            {% endif %}
+            {% if filename %}
+                <span class="tag file">Последний файл: {{ filename }}</span>
+            {% endif %}
+        </div>
+    </header>
 
-        {% if result.prediction_counts %}
-            <div class="card">
-                <h2>Распределение предсказанных классов</h2>
-                <ul class="probability-list">
-                    {% for label, count in result.prediction_counts.items() %}
-                        <li>{{ label }} — {{ count }}</li>
+    <main class="content">
+        <section class="card card-accent" id="upload">
+            <div class="section-heading">
+                <h2>1. Загрузите набор транзакций</h2>
+                <p>Формат — CSV. Отсутствующие признаки будут заполнены автоматически, после чего появится интерактивный отчёт.</p>
+            </div>
+            <form method="post" action="/analyze" enctype="multipart/form-data" class="upload-form">
+                <input type="file" name="file" accept=".csv" required>
+                <button class="button" type="submit">Загрузить и проанализировать</button>
+            </form>
+            {% if error %}
+                <div class="alert error">{{ error }}</div>
+            {% endif %}
+            {% if notifications %}
+                <div class="stack">
+                    {% for note in notifications %}
+                        <div class="alert info">{{ note }}</div>
                     {% endfor %}
-                </ul>
-            </div>
+                </div>
+            {% endif %}
+        </section>
+
+        {% if result %}
+            <section class="card" id="dataset">
+                <div class="section-heading">
+                    <h2>2. Сводка по загруженному датасету</h2>
+                    <p>Проверьте основные показатели, изучите предпросмотр и распределение предсказаний модели.</p>
+                </div>
+
+                <div class="metric-grid">
+                    <div class="metric">
+                        <label>Объём</label>
+                        <span>{{ result.records }} строк</span>
+                    </div>
+                    <div class="metric">
+                        <label>Признаки</label>
+                        <span>{{ result.columns }}</span>
+                    </div>
+                    {% if result.prediction_counts %}
+                        <div class="metric">
+                            <label>Классы модели</label>
+                            <span>{{ result.prediction_counts|length }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="card-surface">
+                    <h3>Предпросмотр данных</h3>
+                    <div class="table-wrapper">
+                        {{ result.preview_html | safe }}
+                    </div>
+                </div>
+
+                {% if result.prediction_counts %}
+                    <div class="card-surface">
+                        <h3>Распределение предсказанных классов</h3>
+                        <ul class="simple-list">
+                            {% for label, count in result.prediction_counts.items() %}
+                                <li>
+                                    <span>{{ label }}</span>
+                                    <span>{{ count }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                {% if result.average_probabilities %}
+                    <div class="card-surface">
+                        <h3>Средние вероятности по классам</h3>
+                        <ul class="simple-list">
+                            {% for label, prob in result.average_probabilities.items() %}
+                                <li>
+                                    <span>{{ label }}</span>
+                                    <span>{{ "%.2f"|format(prob * 100) }}%</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                {% if result.classification_report or result.confusion_image %}
+                    <div class="card-surface">
+                        <h3>Метрики качества</h3>
+                        <div class="stack">
+                            {% if result.classification_report %}
+                                <pre>{{ result.classification_report }}</pre>
+                            {% endif %}
+                            {% if result.confusion_image %}
+                                <img class="chart" src="data:image/png;base64,{{ result.confusion_image }}" alt="Confusion Matrix">
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+            </section>
         {% endif %}
 
-        {% if result.average_probabilities %}
-            <div class="card">
-                <h2>Средние вероятности по классам</h2>
-                <ul class="probability-list">
-                    {% for label, prob in result.average_probabilities.items() %}
-                        <li>{{ label }} — {{ "%.2f"|format(prob * 100) }}%</li>
-                    {% endfor %}
-                </ul>
-            </div>
+        {% if importance_image or top_features %}
+            <section class="card" id="features">
+                <div class="section-heading">
+                    <h2>3. Важность признаков модели</h2>
+                    <p>Используйте визуализацию и рейтинг, чтобы объяснить решения модели и выявить критичные признаки.</p>
+                </div>
+                <div class="feature-grid">
+                    {% if importance_image %}
+                        <div class="card-surface">
+                            <h3>Топ признаков по gain</h3>
+                            <img class="chart" src="data:image/png;base64,{{ importance_image }}" alt="Feature Importance">
+                        </div>
+                    {% endif %}
+                    {% if top_features %}
+                        <div class="card-surface">
+                            <h3>Рейтинг признаков</h3>
+                            <ul class="simple-list">
+                                {% for item in top_features %}
+                                    <li>
+                                        <span>{{ item.feature }}</span>
+                                        <span>{{ "%.2f"|format(item.importance) }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
         {% endif %}
 
-        {% if result.classification_report %}
-            <div class="card">
-                <h2>Классификационный отчет (anomaly_type)</h2>
-                <pre>{{ result.classification_report }}</pre>
-            </div>
-        {% endif %}
-
-        {% if result.confusion_image %}
-            <div class="card">
-                <h2>Confusion Matrix</h2>
-                <img src="data:image/png;base64,{{ result.confusion_image }}" alt="Confusion Matrix">
-            </div>
-        {% endif %}
-    {% endif %}
-
-    {% if importance_image %}
-        <div class="card">
-            <h2>Важность признаков модели</h2>
-            <img src="data:image/png;base64,{{ importance_image }}" alt="Feature Importance">
-        </div>
-    {% endif %}
-
-    {% if top_features %}
-        <div class="card">
-            <h2>Топ признаков (Gain)</h2>
-            <ul class="probability-list">
-                {% for item in top_features %}
-                    <li>{{ item.feature }} — {{ "%.2f"|format(item.importance) }}</li>
-                {% endfor %}
-            </ul>
-        </div>
-    {% endif %}
-
-    {% if model_ready %}
-        <div class="card">
-            <h2>Прогноз для одной транзакции</h2>
-            <p class="form-hint">Выберите значения признаков из выпадающих списков (важные признаки отмечены бэйджем «топ»). Значения подставлены по умолчанию из загруженного датасета.</p>
-            <form method="post" action="/predict-form">
-                <div class="form-grid">
-                    {% for field in input_metadata %}
-                        <label class="form-field">
-                            <span class="field-name">
-                                {{ field.name.replace('_', ' ') }}
-                                {% if field.is_top_feature %}
-                                    <span class="tag highlight">топ</span>
-                                {% endif %}
-                            </span>
-                            {% if field.input_type == "select" %}
-                                <select name="{{ field.name }}">
-                                    {% for choice in field.choices %}
-                                        <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
-                                    {% endfor %}
-                                </select>
-                            {% elif field.input_type == "number" %}
-                                <input type="number" name="{{ field.name }}" value="{{ field.value }}" step="{{ field.step }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
-                                {% if field.suggestions %}
-                                    <datalist id="{{ field.datalist_id }}">
-                                        {% for suggestion in field.suggestions %}
-                                            <option value="{{ suggestion }}"></option>
+        {% if model_ready %}
+            <section class="card card-accent" id="prediction">
+                <div class="section-heading">
+                    <h2>4. Прогноз для одной транзакции</h2>
+                    <p>Выберите значения признаков вручную или загрузите CSV с одной строкой. Признаки с высоким вкладом отмечены как «топ».</p>
+                </div>
+                <form method="post" action="/predict-form">
+                    <div class="form-grid">
+                        {% for field in input_metadata %}
+                            <div class="form-field">
+                                <label>
+                                    {{ field.name.replace('_', ' ') }}
+                                    {% if field.is_top_feature %}
+                                        <span class="badge-top">топ</span>
+                                    {% endif %}
+                                </label>
+                                {% if field.input_type == "select" %}
+                                    <select name="{{ field.name }}">
+                                        {% for choice in field.choices %}
+                                            <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
                                         {% endfor %}
-                                    </datalist>
+                                    </select>
+                                {% elif field.input_type == "number" %}
+                                    <input type="number" name="{{ field.name }}" value="{{ field.value }}" step="{{ field.step }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
+                                    {% if field.suggestions %}
+                                        <datalist id="{{ field.datalist_id }}">
+                                            {% for suggestion in field.suggestions %}
+                                                <option value="{{ suggestion }}"></option>
+                                            {% endfor %}
+                                        </datalist>
+                                    {% endif %}
+                                {% else %}
+                                    <input type="text" name="{{ field.name }}" value="{{ field.value }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
+                                    {% if field.suggestions %}
+                                        <datalist id="{{ field.datalist_id }}">
+                                            {% for suggestion in field.suggestions %}
+                                                <option value="{{ suggestion }}"></option>
+                                            {% endfor %}
+                                        </datalist>
+                                    {% endif %}
+                                {% endif %}
+                                {% if field.importance_score %}
+                                    <span class="field-meta">Важность: {{ "%.2f"|format(field.importance_score) }}</span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <button class="button" type="submit">Получить прогноз</button>
+                </form>
+
+                <details class="csv-upload">
+                    <summary>Альтернатива: загрузить CSV с одной записью</summary>
+                    <form method="post" action="/predict" enctype="multipart/form-data" class="upload-form" style="margin-top: 12px;">
+                        <input type="file" name="file" accept=".csv" required>
+                        <button class="button" type="submit">Проанализировать CSV</button>
+                    </form>
+                </details>
+
+                {% if prediction_error %}
+                    <div class="alert error">{{ prediction_error }}</div>
+                {% endif %}
+
+                {% if prediction %}
+                    <div class="card-surface">
+                        <h3>Результат прогноза</h3>
+                        <div class="table-wrapper table-wrapper--compact">
+                            {{ prediction.preview_html | safe }}
+                        </div>
+                        <div class="prediction-summary">
+                            <div>
+                                <strong>Источник данных:</strong> {% if prediction.source == 'form' %}форма{% else %}CSV{% endif %}
+                            </div>
+                            <div>
+                                <strong>Тип аномалии:</strong> {{ prediction.anomaly_label }}
+                            </div>
+                            <div>
+                                <strong>Вероятность класса:</strong> {{ "%.2f"|format(prediction.predicted_probability * 100) }}%
+                            </div>
+                            <ul class="simple-list">
+                                {% for item in prediction.anomaly_probabilities %}
+                                    <li>
+                                        <span>{{ item.label }}</span>
+                                        <span>{{ "%.2f"|format(item.probability * 100) }}%</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            {% if prediction.suspicious is not none %}
+                                {% if prediction.suspicious %}
+                                    <div class="alert info">Подозрительная транзакция — вероятность {{ "%.1f"|format(prediction.suspicious_probability * 100) }}%</div>
+                                {% else %}
+                                    <div class="alert success">Вероятность аномалии низкая — {{ "%.1f"|format((1 - prediction.suspicious_probability) * 100) }}%</div>
                                 {% endif %}
                             {% else %}
-                                <input type="text" name="{{ field.name }}" value="{{ field.value }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
-                                {% if field.suggestions %}
-                                    <datalist id="{{ field.datalist_id }}">
-                                        {% for suggestion in field.suggestions %}
-                                            <option value="{{ suggestion }}"></option>
-                                        {% endfor %}
-                                    </datalist>
-                                {% endif %}
+                                <div class="alert info">Модель не обучена на нормальных транзакциях (класс NORMAL отсутствует).</div>
                             {% endif %}
-                            {% if field.importance_score %}
-                                <small class="field-meta">Важность: {{ "%.2f"|format(field.importance_score) }}</small>
+
+                            {% if prediction.preprocessing_notes %}
+                                {% for prep_note in prediction.preprocessing_notes %}
+                                    <div class="alert info">{{ prep_note }}</div>
+                                {% endfor %}
                             {% endif %}
-                        </label>
-                    {% endfor %}
-                </div>
-                <div class="form-actions">
-                    <button type="submit">Получить прогноз</button>
-                </div>
-            </form>
-            <details class="csv-upload">
-                <summary>Альтернатива: загрузить CSV с одной записью</summary>
-                <form method="post" action="/predict" enctype="multipart/form-data" style="margin-top: 12px;">
-                    <input type="file" name="file" accept=".csv" required>
-                    <button type="submit">Проанализировать CSV</button>
-                </form>
-            </details>
-            {% if prediction_error %}
-                <div class="alert error">{{ prediction_error }}</div>
-            {% endif %}
-
-            {% if prediction %}
-                <div class="table-wrapper" style="margin-top:16px;">
-                    {{ prediction.preview_html | safe }}
-                </div>
-
-                <p><strong>Тип аномалии:</strong> {{ prediction.anomaly_label }}</p>
-                <p><strong>Вероятность класса:</strong> {{ "%.2f"|format(prediction.predicted_probability * 100) }}%</p>
-                <ul class="probability-list">
-                    {% for item in prediction.anomaly_probabilities %}
-                        <li>{{ item.label }} — {{ "%.2f"|format(item.probability * 100) }}%</li>
-                    {% endfor %}
-                </ul>
-
-                {% if prediction.suspicious is not none %}
-                    <p>
-                        <strong>Подозрительность:</strong>
-                        {% if prediction.suspicious %}
-                            Да<span class="tag warn">{{ "%.1f"|format(prediction.suspicious_probability * 100) }}%</span>
-                        {% else %}
-                            Нет<span class="tag success">{{ "%.1f"|format((1 - prediction.suspicious_probability) * 100) }}%</span>
-                        {% endif %}
-                    </p>
-                {% else %}
-                    <p><strong>Подозрительность:</strong> модель не обучена (нет таргета).</p>
+                        </div>
+                    </div>
                 {% endif %}
-
-                {% if prediction.preprocessing_notes %}
-                    {% for prep_note in prediction.preprocessing_notes %}
-                        <div class="alert info">{{ prep_note }}</div>
-                    {% endfor %}
-                {% endif %}
-
-            {% endif %}
-        </div>
-    {% endif %}
+            </section>
+        {% endif %}
+    </main>
 </div>
 </body>
 </html>
