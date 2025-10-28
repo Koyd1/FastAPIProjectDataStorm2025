@@ -44,44 +44,27 @@
         }
 
         .masthead {
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.64));
-            color: #f8fafc;
-            padding: 32px;
-            border-radius: 22px;
-            box-shadow: var(--shadow-md);
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            box-shadow: var(--shadow-sm);
+            padding: 28px 32px;
             display: flex;
             justify-content: space-between;
-            gap: 24px;
-            align-items: flex-start;
-        }
-
-        .masthead__brand {
-            display: flex;
-            gap: 18px;
+            gap: 20px;
             align-items: center;
         }
 
-        .brand-mark {
-            width: 60px;
-            height: 60px;
-            border-radius: 20px;
-            background: rgba(15, 23, 42, 0.3);
-            display: grid;
-            place-items: center;
-            font-weight: 700;
-            font-size: 20px;
-            letter-spacing: 0.08em;
-        }
-
-        .masthead__brand h1 {
+        .masthead__intro h1 {
             margin: 0 0 8px;
-            font-size: 28px;
+            font-size: 26px;
+            color: var(--text-primary);
         }
 
-        .masthead__brand p {
+        .masthead__intro p {
             margin: 0;
-            max-width: 600px;
-            color: rgba(248, 250, 252, 0.85);
+            color: var(--text-muted);
+            max-width: 640px;
         }
 
         .masthead__status {
@@ -151,6 +134,61 @@
         }
 
         .button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        input[type="file"] {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--surface-muted);
+            border: 1px dashed var(--border-color);
+            padding: 12px 14px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        input[type="file"]:hover {
+            border-color: var(--accent);
+            background: rgba(37, 99, 235, 0.08);
+        }
+
+        input[type="file"]::file-selector-button {
+            border: none;
+            margin-right: 14px;
+            background: var(--accent);
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        input[type="file"]:hover::file-selector-button {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        input[type="file"]::-webkit-file-upload-button {
+            border: none;
+            margin-right: 14px;
+            background: var(--accent);
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        input[type="file"]:hover::-webkit-file-upload-button {
             background: var(--accent-hover);
             transform: translateY(-1px);
         }
@@ -418,12 +456,9 @@
 <body>
 <div class="layout">
     <header class="masthead">
-        <div class="masthead__brand">
-            <span class="brand-mark">AA</span>
-            <div>
-                <h1>Цифровой анализ аномалий</h1>
-                <p>Загружайте CSV с транзакциями, изучайте предсказанные классы, важность признаков и получайте одиночные прогнозы буквально за пару кликов.</p>
-            </div>
+        <div class="masthead__intro">
+            <h1>Цифровой анализ аномалий</h1>
+            <p>Загрузите CSV, чтобы получить сводку по аномальным транзакциям и построить мгновенный прогноз для единичных операций.</p>
         </div>
         <div class="masthead__status">
             {% if model_ready %}
@@ -459,28 +494,45 @@
             {% endif %}
         </section>
 
+        <section class="card" id="single-upload">
+            <div class="section-heading">
+                <h2>2. Быстрый прогноз по одной записи</h2>
+                <p>Загрузите CSV с единственной строкой, чтобы мгновенно получить классификацию и вероятности.</p>
+            </div>
+            <details class="csv-upload" open>
+                <summary>Альтернатива: загрузить CSV с одной записью</summary>
+                <form method="post" action="/predict" enctype="multipart/form-data" class="upload-form" style="margin-top: 12px;">
+                    <input type="file" name="file" accept=".csv" required>
+                    <button class="button" type="submit">Проанализировать CSV</button>
+                </form>
+            </details>
+        </section>
+
         {% if result %}
             <section class="card" id="dataset">
                 <div class="section-heading">
-                    <h2>2. Сводка по загруженному датасету</h2>
+                    <h2>3. Сводка по загруженному датасету</h2>
                     <p>Проверьте основные показатели, изучите предпросмотр и распределение предсказаний модели.</p>
                 </div>
 
-                <div class="metric-grid">
-                    <div class="metric">
-                        <label>Объём</label>
-                        <span>{{ result.records }} строк</span>
-                    </div>
-                    <div class="metric">
-                        <label>Признаки</label>
-                        <span>{{ result.columns }}</span>
-                    </div>
-                    {% if result.prediction_counts %}
+                <div class="card-surface">
+                    <h3>Основные метрики загруженного набора</h3>
+                    <div class="metric-grid">
                         <div class="metric">
-                            <label>Классы модели</label>
-                            <span>{{ result.prediction_counts|length }}</span>
+                            <label>Объём</label>
+                            <span>{{ result.records }} строк</span>
                         </div>
-                    {% endif %}
+                        <div class="metric">
+                            <label>Признаки</label>
+                            <span>{{ result.columns }}</span>
+                        </div>
+                        {% if result.prediction_counts %}
+                            <div class="metric">
+                                <label>Классы модели</label>
+                                <span>{{ result.prediction_counts|length }}</span>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <div class="card-surface">
@@ -537,7 +589,7 @@
         {% if importance_image or top_features %}
             <section class="card" id="features">
                 <div class="section-heading">
-                    <h2>3. Важность признаков модели</h2>
+                    <h2>4. Важность признаков модели</h2>
                     <p>Используйте визуализацию и рейтинг, чтобы объяснить решения модели и выявить критичные признаки.</p>
                 </div>
                 <div class="feature-grid">
@@ -566,59 +618,55 @@
 
         {% if model_ready %}
             <section class="card card-accent" id="prediction">
-                <div class="section-heading">
-                    <h2>4. Прогноз для одной транзакции</h2>
-                    <p>Выберите значения признаков вручную или загрузите CSV с одной строкой. Признаки с высоким вкладом отмечены как «топ».</p>
-                </div>
-                <form method="post" action="/predict-form">
-                    <div class="form-grid">
-                        {% for field in input_metadata %}
-                            <div class="form-field">
-                                <label>
-                                    {{ field.name.replace('_', ' ') }}
-                                    {% if field.is_top_feature %}
-                                        <span class="badge-top">топ</span>
-                                    {% endif %}
-                                </label>
-                                {% if field.input_type == "select" %}
-                                    <select name="{{ field.name }}">
-                                        {% for choice in field.choices %}
-                                            <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
-                                        {% endfor %}
-                                    </select>
-                                {% elif field.input_type == "number" %}
-                                    <input type="number" name="{{ field.name }}" value="{{ field.value }}" step="{{ field.step }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
-                                    {% if field.suggestions %}
-                                        <datalist id="{{ field.datalist_id }}">
-                                            {% for suggestion in field.suggestions %}
-                                                <option value="{{ suggestion }}"></option>
+                <details class="card-surface" open>
+                    <summary>
+                        <div class="section-heading" style="margin:0;">
+                            <h2>5. Прогноз для одной транзакции</h2>
+                            <p>Выберите значения признаков вручную или загрузите CSV с одной строкой. Признаки с высоким вкладом отмечены как «топ».</p>
+                        </div>
+                    </summary>
+                    <form method="post" action="/predict-form" style="margin-top: 16px;">
+                        <div class="form-grid">
+                            {% for field in input_metadata %}
+                                <div class="form-field">
+                                    <label>
+                                        {{ field.name.replace('_', ' ') }}
+                                        {% if field.is_top_feature %}
+                                            <span class="badge-top">топ</span>
+                                        {% endif %}
+                                    </label>
+                                    {% if field.input_type == "select" %}
+                                        <select name="{{ field.name }}">
+                                            {% for choice in field.choices %}
+                                                <option value="{{ choice.value }}" {% if choice.selected %}selected{% endif %}>{{ choice.label }}</option>
                                             {% endfor %}
-                                        </datalist>
+                                        </select>
+                                    {% elif field.input_type == "number" %}
+                                        <input type="number" name="{{ field.name }}" value="{{ field.value }}" step="{{ field.step }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
+                                        {% if field.suggestions %}
+                                            <datalist id="{{ field.datalist_id }}">
+                                                {% for suggestion in field.suggestions %}
+                                                    <option value="{{ suggestion }}"></option>
+                                                {% endfor %}
+                                            </datalist>
+                                        {% endif %}
+                                    {% else %}
+                                        <input type="text" name="{{ field.name }}" value="{{ field.value }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
+                                        {% if field.suggestions %}
+                                            <datalist id="{{ field.datalist_id }}">
+                                                {% for suggestion in field.suggestions %}
+                                                    <option value="{{ suggestion }}"></option>
+                                                {% endfor %}
+                                            </datalist>
+                                        {% endif %}
                                     {% endif %}
-                                {% else %}
-                                    <input type="text" name="{{ field.name }}" value="{{ field.value }}" {% if field.suggestions %}list="{{ field.datalist_id }}"{% endif %}>
-                                    {% if field.suggestions %}
-                                        <datalist id="{{ field.datalist_id }}">
-                                            {% for suggestion in field.suggestions %}
-                                                <option value="{{ suggestion }}"></option>
-                                            {% endfor %}
-                                        </datalist>
+                                    {% if field.importance_score %}
+                                        <span class="field-meta">Важность: {{ "%.2f"|format(field.importance_score) }}</span>
                                     {% endif %}
-                                {% endif %}
-                                {% if field.importance_score %}
-                                    <span class="field-meta">Важность: {{ "%.2f"|format(field.importance_score) }}</span>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                    <button class="button" type="submit">Получить прогноз</button>
-                </form>
-
-                <details class="csv-upload">
-                    <summary>Альтернатива: загрузить CSV с одной записью</summary>
-                    <form method="post" action="/predict" enctype="multipart/form-data" class="upload-form" style="margin-top: 12px;">
-                        <input type="file" name="file" accept=".csv" required>
-                        <button class="button" type="submit">Проанализировать CSV</button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <button class="button" type="submit">Получить прогноз</button>
                     </form>
                 </details>
 
@@ -674,7 +722,7 @@
         {% if rf_visuals %}
             <section class="card" id="global-insights">
                 <div class="section-heading">
-                    <h2>5. Кластеризация (Random Forest)</h2>
+                    <h2>6. Кластеризация (Random Forest)</h2>
                     <p>Интерактивные инсайты по всем загруженным наборам данных. Кластеры формируются заново после каждой загрузки.</p>
                 </div>
                 <div class="metric-grid">
