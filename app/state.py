@@ -25,6 +25,7 @@ class AppStore:
     column_importance: Dict[str, float] = field(default_factory=dict)
     top_columns: Set[str] = field(default_factory=set)
     last_analysis: Optional[Dict[str, Any]] = None
+    last_prediction: Optional[Dict[str, Any]] = None
     current_metadata: List[Dict[str, Any]] = field(default_factory=list)
     supabase_client: Optional[Any] = None
     db_service: Optional[Any] = None

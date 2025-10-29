@@ -5,3 +5,5 @@ app/__pycache__
 __pycache__
 /.env
 .env
+/node_modules/
+/package-lock.json

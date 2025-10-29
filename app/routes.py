@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from fastapi import File, Request, UploadFile
+from fastapi import File, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .analytics import analyze_dataset, prediction_summary, transform_single_record
@@ -18,13 +18,35 @@ from fastapi.responses import FileResponse
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 import tempfile
 from bs4 import BeautifulSoup
+
+def build_vertical_preview_html(dataframe: pd.DataFrame) -> str:
+    if dataframe is None or dataframe.empty:
+        return '<table class="preview-table preview-table--vertical"></table>'
+
+    row = dataframe.head(1).T.reset_index()
+    row.columns = ["Признак", "Значение"]
+
+    def format_label(label: Any) -> str:
+        text = str(label).replace("_", " ").strip()
+        return text or "-"
+
+    def format_value(value: Any) -> str:
+        if pd.isna(value):
+            return "-"
+        if isinstance(value, float):
+            return f"{value:.6g}"
+        return str(value)
+
+    row["Признак"] = row["Признак"].map(format_label)
+    row["Значение"] = row["Значение"].map(format_value)
+
+    return row.to_html(index=False, classes=["preview-table", "preview-table--vertical"], border=0)
 
 def register_routes(app) -> None:
     templates = app.state.templates
@@ -299,8 +321,11 @@ def register_routes(app) -> None:
 
         prediction = prediction_summary(features, context)
         prediction["preview_html"] = dataframe.to_html(index=False, classes="preview-table")
+        prediction["preview_vertical_html"] = build_vertical_preview_html(dataframe)
         prediction["preprocessing_notes"] = prep_notifications
         prediction["source"] = "csv"
+        prediction["generated_at"] = datetime.utcnow().isoformat()
+        store.last_prediction = prediction
 
         storage_df = dataframe.copy()
         storage_df["predicted_anomaly"] = prediction["anomaly_label"]
@@ -392,8 +417,11 @@ def register_routes(app) -> None:
 
         prediction = prediction_summary(features, context)
         prediction["preview_html"] = record_df.to_html(index=False, classes="preview-table")
+        prediction["preview_vertical_html"] = build_vertical_preview_html(record_df)
         prediction["preprocessing_notes"] = prep_notifications
         prediction["source"] = "form"
+        prediction["generated_at"] = datetime.utcnow().isoformat()
+        store.last_prediction = prediction
 
         storage_df = record_df.copy()
         storage_df["predicted_anomaly"] = prediction["anomaly_label"]
@@ -421,89 +449,85 @@ def register_routes(app) -> None:
 
     def truncate_text(text: str, max_len: int = MAX_CELL_LENGTH) -> str:
         if len(text) > max_len:
-            return text[:max_len-3] + "..."
+            return text[: max_len - 3] + "..."
         return text
 
-    @app.get("/export-pdf")
-    async def export_pdf(request: Request):
-        store = request.app.state.store
-        result = store.last_analysis
-        if not result:
-            return HTMLResponse("<h3>Нет данных для экспорта</h3>")
-
+    def ensure_pdf_font() -> Optional[HTMLResponse]:
         font_path = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
         if not os.path.exists(font_path):
-            return HTMLResponse("<h3>Файл шрифта DejaVuSans.ttf не найден. Поместите его в папку /fonts рядом с routes.py</h3>")
-        pdfmetrics.registerFont(TTFont("DejaVuSans", font_path))
+            return HTMLResponse(
+                "<h3>Файл шрифта DejaVuSans.ttf не найден. Поместите его в папку /fonts рядом с routes.py</h3>"
+            )
+        if "DejaVuSans" not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont("DejaVuSans", font_path))
+        return None
 
-        tmp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        doc = SimpleDocTemplate(tmp_pdf.name, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
-        available_width = doc.width
-
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name="TitleRu", fontName="DejaVuSans", fontSize=18, leading=22, alignment=1, textColor=colors.darkblue))
-        styles.add(ParagraphStyle(name="Heading", fontName="DejaVuSans", fontSize=14, leading=18, textColor=colors.darkred))
-        styles.add(ParagraphStyle(name="Body", fontName="DejaVuSans", fontSize=10, leading=12))
-
-        story = []
-
-        # === Заголовок ===
+    def build_dataset_story(result: Dict[str, Any], styles, available_width: float) -> List[Any]:
+        story: List[Any] = []
         story.append(Paragraph("📊 Отчёт по загруженному датасету", styles["TitleRu"]))
         story.append(Spacer(1, 16))
 
-        # === Основные метрики ===
         story.append(Paragraph("Основные метрики загруженного набора:", styles["Heading"]))
-        data = [["Показатель", "Значение"]]
-        data.append(["Объём строк", truncate_text(str(result.get("records", "-")))])
-        data.append(["Количество признаков", truncate_text(str(result.get("columns", "-")))])
+        metrics_rows = [
+            ["Показатель", "Значение"],
+            ["Объём строк", truncate_text(str(result.get("records", "-")))],
+            ["Количество признаков", truncate_text(str(result.get("columns", "-")))],
+        ]
         if result.get("prediction_counts"):
-            data.append(["Количество классов модели", truncate_text(str(len(result["prediction_counts"])))])
+            metrics_rows.append(["Количество классов модели", truncate_text(str(len(result["prediction_counts"])))])
 
-        metrics_table = Table([[Paragraph(str(c), styles["Body"]) for c in row] for row in data],
-                            hAlign="LEFT", colWidths=[200, 250])
-        metrics_table.setStyle(TableStyle([
-            ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-            ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-            ("ALIGN", (0,0), (-1,0), "CENTER"),
-            ("VALIGN", (0,0), (-1,-1), "TOP"),
-        ]))
+        metrics_table = Table(
+            [[Paragraph(str(cell), styles["Body"]) for cell in row] for row in metrics_rows],
+            hAlign="LEFT",
+            colWidths=[200, 250],
+        )
+        metrics_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
         story.append(metrics_table)
         story.append(Spacer(1, 12))
 
-        # === Предпросмотр данных (первые 10 строк) ===
-        if result.get("preview_html"):
+        preview_html = result.get("preview_html")
+        if preview_html:
             story.append(Paragraph("Предпросмотр данных (первые 10 строк):", styles["Heading"]))
-            soup = BeautifulSoup(result["preview_html"], "html.parser")
+            soup = BeautifulSoup(preview_html, "html.parser")
             rows = soup.find_all("tr")
-            table_data = []
-            for row in rows[:11]:  # заголовок + 10 строк
-                cols = [truncate_text(c.get_text(strip=True)) for c in row.find_all(["th","td"])]
-                cols = [Paragraph(c, styles["Body"]) for c in cols]
-                table_data.append(cols)
+            table_data: List[List[Paragraph]] = []
+            for row in rows[:11]:
+                cols = [truncate_text(cell.get_text(strip=True)) for cell in row.find_all(["th", "td"])]
+                table_data.append([Paragraph(col, styles["Body"]) for col in cols])
 
             if table_data:
-                num_cols = len(table_data[0])
-                if num_cols == 0:
-                    num_cols = 1
+                num_cols = len(table_data[0]) or 1
                 col_width = max(40, available_width / num_cols)
                 total_width = col_width * num_cols
                 if total_width > available_width:
                     col_width = available_width / num_cols
                 col_widths = [col_width] * num_cols
                 preview_table = Table(table_data, repeatRows=1, colWidths=col_widths)
-                preview_table.setStyle(TableStyle([
-                    ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
-                    ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-                    ("VALIGN", (0,0), (-1,-1), "TOP"),
-                    ("LEFTPADDING", (0,0), (-1,-1), 2),
-                    ("RIGHTPADDING", (0,0), (-1,-1), 2),
-                    ("TOPPADDING", (0,0), (-1,-1), 2),
-                    ("BOTTOMPADDING", (0,0), (-1,-1), 2),
-                ]))
+                preview_table.setStyle(
+                    TableStyle(
+                        [
+                            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                            ("TOPPADDING", (0, 0), (-1, -1), 2),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                        ]
+                    )
+                )
                 story.append(preview_table)
                 story.append(Spacer(1, 12))
 
-        # Распределение классов
         if result.get("prediction_counts"):
             story.append(PageBreak())
             story.append(Paragraph("Распределение классов модели:", styles["Heading"]))
@@ -511,35 +535,284 @@ def register_routes(app) -> None:
             for cls, cnt in result["prediction_counts"].items():
                 class_data.append([str(cls), str(cnt)])
             class_table = Table(class_data, hAlign="LEFT", colWidths=[200, 200])
-            class_table.setStyle(TableStyle([
-                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-                ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-                ("FONTNAME", (0,0), (-1,-1), "DejaVuSans"),
-                ("FONTSIZE", (0,0), (-1,-1), 10),
-                ("ALIGN", (0,0), (-1,0), "CENTER"),
-                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ]))
+            class_table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+                        ("FONTNAME", (0, 0), (-1, -1), "DejaVuSans"),
+                        ("FONTSIZE", (0, 0), (-1, -1), 10),
+                        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ]
+                )
+            )
             story.append(class_table)
             story.append(Spacer(1, 12))
 
-        # === Добавляем разрыв страницы перед средними вероятностями ===
         if result.get("average_probabilities"):
             story.append(PageBreak())
             story.append(Paragraph("Средние вероятности по классам:", styles["Heading"]))
-            prob_data = [["Класс", "Средняя вероятность"]]
+            prob_rows = [["Класс", "Средняя вероятность"]]
             for label, prob in result["average_probabilities"].items():
-                prob_data.append([truncate_text(str(label)), f"{prob*100:.2f}%"])
+                prob_rows.append([truncate_text(str(label)), f"{prob * 100:.2f}%"])
 
-            prob_table = Table([[Paragraph(str(c), styles["Body"]) for c in row] for row in prob_data],
-                            hAlign="LEFT", colWidths=[200, 250])
-            prob_table.setStyle(TableStyle([
-                ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
-                ("BACKGROUND", (0,0), (-1,0), colors.lightblue),
-                ("ALIGN", (0,0), (-1,0), "CENTER"),
-                ("VALIGN", (0,0), (-1,-1), "TOP"),
-            ]))
+            prob_table = Table(
+                [[Paragraph(str(cell), styles["Body"]) for cell in row] for row in prob_rows],
+                hAlign="LEFT",
+                colWidths=[200, 250],
+            )
+            prob_table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+                        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
             story.append(prob_table)
             story.append(Spacer(1, 12))
 
-        doc.build(story)
-        return FileResponse(tmp_pdf.name, filename="dataset_analysis.pdf", media_type="application/pdf")
+        return story
+
+    def build_single_prediction_story(prediction: Dict[str, Any], styles, available_width: float) -> List[Any]:
+        story: List[Any] = []
+        story.append(Paragraph("Индивидуальный прогноз по транзакции", styles["TitleRu"]))
+        story.append(Spacer(1, 16))
+
+        summary_rows: List[List[str]] = []
+        generated_at = prediction.get("generated_at")
+        if generated_at:
+            try:
+                timestamp = datetime.fromisoformat(generated_at)
+                summary_rows.append(["Дата и время прогноза", timestamp.strftime("%d.%m.%Y %H:%M:%S")])
+            except ValueError:
+                summary_rows.append(["Дата и время прогноза", truncate_text(str(generated_at))])
+
+        source_label = "CSV" if prediction.get("source") == "csv" else "Форма"
+        summary_rows.append(["Источник данных", source_label])
+        summary_rows.append(["Определённая аномалия", truncate_text(str(prediction.get("anomaly_label", "-")))])
+
+        predicted_probability = prediction.get("predicted_probability")
+        if predicted_probability is not None:
+            summary_rows.append(["Вероятность выбранного класса", f"{predicted_probability * 100:.2f}%"])
+
+        suspicious = prediction.get("suspicious")
+        if suspicious is not None:
+            suspicious_text = "Подозрительная транзакция" if suspicious else "Критических признаков не обнаружено"
+            summary_rows.append(["Статус транзакции", suspicious_text])
+
+        suspicious_prob = prediction.get("suspicious_probability")
+        if suspicious_prob is not None:
+            summary_rows.append(["Уровень риска", f"{suspicious_prob * 100:.1f}%"])
+
+        summary_table = Table(
+            [[Paragraph(str(cell), styles["Body"]) for cell in row] for row in [["Параметр", "Значение"], *summary_rows]],
+            hAlign="LEFT",
+            colWidths=[220, 230],
+        )
+        summary_table.setStyle(
+            TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+                    ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(summary_table)
+        story.append(Spacer(1, 14))
+
+        prob_items = prediction.get("anomaly_probabilities")
+        if prob_items:
+            story.append(Paragraph("Вероятности по всем классам:", styles["Heading"]))
+            prob_rows = [["Класс", "Вероятность"]]
+            for item in prob_items:
+                prob_rows.append(
+                    [
+                        truncate_text(str(item.get("label", "-"))),
+                        f"{float(item.get("probability", 0.0)) * 100:.2f}%",
+                    ]
+                )
+            prob_table = Table(
+                [[Paragraph(str(cell), styles["Body"]) for cell in row] for row in prob_rows],
+                hAlign="LEFT",
+                colWidths=[220, 150],
+            )
+            prob_table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+                        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(prob_table)
+            story.append(Spacer(1, 14))
+
+        preview_html = prediction.get("preview_vertical_html") or prediction.get("preview_html")
+        if preview_html:
+            story.append(Paragraph("Предпросмотр исходных признаков:", styles["Heading"]))
+            soup = BeautifulSoup(preview_html, "html.parser")
+            record_pairs: List[List[Paragraph]] = []
+
+            vertical_rows = soup.select("table.preview-table--vertical tbody tr")
+            if vertical_rows:
+                for row in vertical_rows:
+                    cells = row.find_all(["th", "td"])
+                    if not cells:
+                        continue
+                    header_text = truncate_text(cells[0].get_text(strip=True), 40)
+                    value_text = "-"
+                    if len(cells) > 1:
+                        value_text = truncate_text(cells[1].get_text(strip=True), 80)
+                    record_pairs.append(
+                        [
+                            Paragraph(header_text, styles["Body"]),
+                            Paragraph(value_text, styles["Body"]),
+                        ]
+                    )
+            else:
+                header_cells = soup.select("thead tr th")
+                row_cells = soup.select("tbody tr:first-child td")
+
+                if not header_cells:
+                    rows = soup.find_all("tr")
+                    if rows:
+                        potential_headers = rows[0].find_all("th")
+                        if potential_headers:
+                            header_cells = potential_headers
+                            if len(rows) > 1:
+                                row_cells = rows[1].find_all("td")
+
+                if header_cells and row_cells:
+                    for index, header_cell in enumerate(header_cells):
+                        header_text = truncate_text(header_cell.get_text(strip=True), 40)
+                        value_text = truncate_text(
+                            row_cells[index].get_text(strip=True) if index < len(row_cells) else "-", 80
+                        )
+                        record_pairs.append(
+                            [
+                                Paragraph(header_text, styles["Body"]),
+                                Paragraph(value_text, styles["Body"]),
+                            ]
+                        )
+                else:
+                    # fallback: treat each table cell sequentially
+                    first_row = soup.find("tr")
+                    if first_row:
+                        cells = [
+                            truncate_text(cell.get_text(strip=True), 80)
+                            for cell in first_row.find_all(["th", "td"])
+                        ]
+                        for idx, cell_value in enumerate(cells, start=1):
+                            record_pairs.append(
+                                [
+                                    Paragraph(f"Признак {idx}", styles["Body"]),
+                                    Paragraph(cell_value or "-", styles["Body"]),
+                                ]
+                            )
+
+            if record_pairs:
+                preview_table = Table(
+                    [[Paragraph("Признак", styles["Body"]), Paragraph("Значение", styles["Body"])], *record_pairs],
+                    colWidths=[available_width * 0.35, available_width * 0.6],
+                    hAlign="LEFT",
+                )
+                preview_table.setStyle(
+                    TableStyle(
+                        [
+                            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                            ("TOPPADDING", (0, 0), (-1, -1), 3),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                        ]
+                    )
+                )
+                story.append(preview_table)
+                story.append(Spacer(1, 14))
+
+        prep_notes = prediction.get("preprocessing_notes") or []
+        if prep_notes:
+            story.append(Paragraph("Примечания предобработки:", styles["Heading"]))
+            for note in prep_notes:
+                story.append(Paragraph(f"• {truncate_text(str(note), 120)}", styles["Body"]))
+            story.append(Spacer(1, 12))
+
+        recommendation: Optional[str] = None
+        if suspicious is not None:
+            if suspicious:
+                recommendation = (
+                    "Рекомендация: провести углублённую проверку транзакции и уведомить службу финконтроля."
+                )
+            else:
+                recommendation = "Рекомендация: транзакция выглядит безопасно, но продолжайте мониторинг."
+        if recommendation:
+            story.append(Paragraph(recommendation, styles["Body"]))
+
+        return story
+
+    @app.get("/export-pdf")
+    async def export_pdf(request: Request, scope: str = Query("dataset")):
+        font_error = ensure_pdf_font()
+        if font_error:
+            return font_error
+
+        store = request.app.state.store
+        content: Optional[List[Any]] = None
+        filename = "dataset_analysis.pdf"
+
+        tmp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        doc = SimpleDocTemplate(
+            tmp_pdf.name,
+            pagesize=A4,
+            rightMargin=30,
+            leftMargin=30,
+            topMargin=30,
+            bottomMargin=30,
+        )
+
+        styles = getSampleStyleSheet()
+        styles.add(
+            ParagraphStyle(
+                name="TitleRu",
+                fontName="DejaVuSans",
+                fontSize=18,
+                leading=22,
+                alignment=1,
+                textColor=colors.darkblue,
+            )
+        )
+        styles.add(
+            ParagraphStyle(
+                name="Heading",
+                fontName="DejaVuSans",
+                fontSize=14,
+                leading=18,
+                textColor=colors.HexColor("#1f2937"),
+            )
+        )
+        styles.add(ParagraphStyle(name="Body", fontName="DejaVuSans", fontSize=10, leading=14))
+
+        if scope == "single":
+            prediction = store.last_prediction
+            if not prediction:
+                return HTMLResponse("<h3>Нет прогноза для экспорта</h3>")
+            content = build_single_prediction_story(prediction, styles, doc.width)
+            filename = "single_prediction.pdf"
+        else:
+            result = store.last_analysis
+            if not result:
+                return HTMLResponse("<h3>Нет данных для экспорта</h3>")
+            content = build_dataset_story(result, styles, doc.width)
+
+        doc.build(content)
+        return FileResponse(tmp_pdf.name, filename=filename, media_type="application/pdf")
