@@ -27,10 +27,13 @@ class AppStore:
     last_analysis: Optional[Dict[str, Any]] = None
     last_prediction: Optional[Dict[str, Any]] = None
     current_metadata: List[Dict[str, Any]] = field(default_factory=list)
+    last_filename: Optional[str] = None
     supabase_client: Optional[Any] = None
     db_service: Optional[Any] = None
     aggregated_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     rf_visuals: Dict[str, Any] = field(default_factory=dict)
+    dataset_cache: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    filename_to_hash: Dict[str, str] = field(default_factory=dict)
 
     def set_context(self, context: ModelContext) -> None:
         self.model_context = context

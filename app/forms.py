@@ -35,12 +35,14 @@ def build_context(
 
         metadata_for_template.append(field_copy)
 
+    resolved_filename = store.last_filename if filename is None else filename
+
     return {
         "request": request,
         "result": result,
         "error": error,
         "notifications": notifications or [],
-        "filename": filename,
+        "filename": resolved_filename,
         "model_ready": store.model_context is not None,
         "prediction": prediction,
         "prediction_error": prediction_error,
