@@ -30,8 +30,14 @@
    pip install fastapi uvicorn lightgbm pandas seaborn scikit-learn matplotlib joblib jinja2 supabase
    ```
 
-3. Скопируйте `.env.example` в `.env` и заполните переменные (см. ниже), если планируете использовать Supabase.
-4. Убедитесь, что в каталоге `models/` лежат файлы `lgbm_anomaly_multi.pkl` и `lgbm_anomaly_meta.pkl`. Они загружаются автоматически при старте приложения.
+3. Установите фронтенд-зависимости и соберите Tailwind CSS:
+   ```bash
+   npm install
+   npm run build:css
+   ```
+   Для разработки интерфейса удобна команда `npm run watch:css`, которая пересобирает стили при изменении шаблонов.
+4. Скопируйте `.env.example` в `.env` и заполните переменные (см. ниже), если планируете использовать Supabase.
+5. Убедитесь, что в каталоге `models/` лежат файлы `lgbm_anomaly_multi.pkl` и `lgbm_anomaly_meta.pkl`. Они загружаются автоматически при старте приложения.
 
 ## Запуск приложения
 

@@ -24,17 +24,17 @@
 
     <main class="content">
         <section class="card card-accent" id="upload">
-            <div class="section-heading">
-                <h2>1. Загрузите набор транзакций</h2>
-                <p>Формат — CSV. Отсутствующие признаки будут заполнены автоматически, после чего появится интерактивный отчёт.</p>
+            <div class="section-heading" style="padding-bottom: 10px;">
+                <h2>1. Загрузите первоначальный набор транзакций</h2>
+                <p>Формат — CSV. Отсутствующие признаки будут заполнены автоматически, после чего появится интерактивный отчёт.<br></p>
             </div>
             <form method="post" action="/analyze" enctype="multipart/form-data" class="upload-form">
                 {{ file_upload("fileInput", "file", "fileName") }}
                 <button class="button" type="submit">Загрузить и проанализировать</button>
             </form>
-            <form method="get" action="/export-pdf">
+            <!-- <form method="get" action="/export-pdf">
                 <button class="button" type="submit">Экспорт в PDF</button>
-            </form>
+            </form> -->
             {% if error %}
                 <div class="alert error">{{ error }}</div>
             {% endif %}
@@ -48,30 +48,55 @@
         </section>
 
         <section class="card" id="single-upload">
-            <div class="section-heading">
+            <div class="section-heading" style="
+    padding-bottom: 10px;">
                 <h2>2. Быстрый прогноз по одной записи</h2>
-                <p>Загрузите CSV с единственной строкой, чтобы мгновенно получить классификацию и вероятности.</p>
+                <p>Передайте транзакцию через CSV или заполните форму вручную — ответ появится сразу.</p>
             </div>
-            <div class="stack">
-                <form method="post" action="/predict" enctype="multipart/form-data" class="upload-form">
-                    {{ file_upload("singleFileInput", "file", "singleFileName") }}
-                    <button class="button" type="submit">Проанализировать CSV</button>
-                </form>
+
+            <div class="quick-stack">
+                <article class="quick-card quick-card--csv">
+                    <div class="quick-card__header">
+                        <span class="quick-card__eyebrow">CSV</span>
+                        <h3 class="quick-card__title">Загрузка одной транзакции</h3>
+                    </div>
+                    <p class="quick-text">Файл должен содержать полный набор признаков. Поддерживаются разделители «,» и «;».</p>
+                    <form method="post" action="/predict" enctype="multipart/form-data" class="upload-form quick-upload">
+                        {{ file_upload("singleFileInput", "file", "singleFileName") }}
+                        <button class="button quick-upload__submit" type="submit">Проанализировать CSV</button>
+                    </form>
+                    <ul class="quick-hints quick-hints--bordered">
+                        <li><span class="quick-dot"></span>Названия колонок должны совпадать с обучающим набором.</li>
+                        <li><span class="quick-dot"></span>Если данных нет, оставьте ячейку пустой — модель заполнит пропуски.</li>
+                        <li><span class="quick-dot"></span>Результат отображается ниже и не сохраняется автоматически.</li>
+                    </ul>
+                                            <form method="get" action="/export-pdf" class="mt-6 flex justify-end">
+                            <input type="hidden" name="scope" value="single">
+                            <button class="button" type="submit">Экспорт прогноза в PDF</button>
+                        </form>
+                </article>
 
                 {% if model_ready %}
                     {% set open_manual_form = form_values or prediction_error or (prediction and prediction.source == 'form') %}
-                    <details class="card-surface" {% if open_manual_form %}open{% endif %}>
-                        <summary>Ручной ввод одной записи для анализа</summary>
-                        <p class="summary-subtext">
-                            Выберите значения признаков вручную или загрузите CSV с одной строкой.
-                            Признаки с высоким вкладом отмечены как «топ».
-                        </p>
-                        <form method="post" action="/predict-form">
-                            <div class="stack">
-                                <div class="form-grid">
+                    <details class="quick-manual" {% if open_manual_form %}open{% endif %}>
+                        <summary>
+                            <div class="quick-manual__summary">
+                                <div>
+                                    <span class="quick-card__eyebrow">Форма</span>
+                                    <h3 class="quick-card__title">Ручной ввод признаков</h3>
+                                </div>
+                                <span class="quick-manual__hint">
+                                    {% if open_manual_form %}свернуть{% else %}раскройте форму{% endif %}
+                                </span>
+                            </div>
+                        </summary>
+                        <p class="summary-subtext">Признаки, наиболее значимые для модели, отмечены бейджем «топ».</p>
+                        <div class="quick-accordion__content">
+                            <form method="post" action="/predict-form" class="quick-manual__form">
+                                <div class="quick-manual__grid">
                                     {% for field in input_metadata %}
-                                        <div class="form-field">
-                                            <label>
+                                        <div class="quick-manual__field">
+                                            <label class="quick-manual__label">
                                                 {{ field.name.replace('_', ' ') }}
                                                 {% if field.is_top_feature %}
                                                     <span class="badge-top">топ</span>
@@ -108,61 +133,80 @@
                                         </div>
                                     {% endfor %}
                                 </div>
-                                <button class="button" type="submit">Получить прогноз</button>
-                            </div>
-                        </form>
-                    </details>
-
-                    {% if prediction_error %}
-                        <div class="alert error">{{ prediction_error }}</div>
-                    {% endif %}
-
-                    {% if prediction %}
-                        <div class="card-surface">
-                            <h3>Результат прогноза</h3>
-                            <div class="table-wrapper table-wrapper--compact">
-                                {{ prediction.preview_html | safe }}
-                            </div>
-                            <div class="prediction-summary">
-                                <div>
-                                    <strong>Источник данных:</strong> {% if prediction.source == 'form' %}форма{% else %}CSV{% endif %}
+                                <div class="quick-manual__actions">
+                                    <button class="button quick-manual__submit" type="submit">Получить прогноз</button>
                                 </div>
-                                <div>
-                                    <strong>Тип аномалии:</strong> {{ prediction.anomaly_label }}
-                                </div>
-                                <div>
-                                    <strong>Вероятность класса:</strong> {{ "%.2f"|format(prediction.predicted_probability * 100) }}%
-                                </div>
-                                <ul class="simple-list">
-                                    {% for item in prediction.anomaly_probabilities %}
-                                        <li>
-                                            <span>{{ item.label }}</span>
-                                            <span>{{ "%.2f"|format(item.probability * 100) }}%</span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                                {% if prediction.suspicious is not none %}
-                                    {% if prediction.suspicious %}
-                                        <div class="alert info">Подозрительная транзакция — вероятность {{ "%.1f"|format(prediction.suspicious_probability * 100) }}%</div>
-                                    {% else %}
-                                        <div class="alert success">Вероятность аномалии низкая — {{ "%.1f"|format((1 - prediction.suspicious_probability) * 100) }}%</div>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="alert info">Модель не обучена на нормальных транзакциях (класс NORMAL отсутствует).</div>
-                                {% endif %}
-
-                                {% if prediction.preprocessing_notes %}
-                                    {% for prep_note in prediction.preprocessing_notes %}
-                                        <div class="alert info">{{ prep_note }}</div>
-                                    {% endfor %}
-                                {% endif %}
-                            </div>
+                            </form>
                         </div>
-                    {% endif %}
+                    </details>
                 {% else %}
-                    <div class="alert info">Модель ещё не загружена, дождитесь и попробуйте снова.</div>
+                    <div class="quick-card quick-card--disabled">
+                        <div class="quick-card__header">
+                            <span class="quick-card__eyebrow">Форма</span>
+                            <h3 class="quick-card__title">Ручной ввод недоступен</h3>
+                        </div>
+                        <p class="quick-text">Дождитесь загрузки модели, чтобы заполнить признаки вручную.</p>
+                    </div>
                 {% endif %}
             </div>
+
+            {% if model_ready %}
+                {% if prediction_error %}
+                    <div class="alert error">{{ prediction_error }}</div>
+                {% endif %}
+
+                {% if prediction %}
+                    <div class="card-surface">
+                        <h3>Результат прогноза</h3>
+                        <div class="table-wrapper table-wrapper--compact">
+                            {{ prediction.preview_html | safe }}
+                        </div>
+                        <div class="prediction-summary">
+                            <div class="prediction-overview">
+                                <div class="prediction-chip">
+                                    <span class="prediction-chip__label">Источник данных</span>
+                                    <span class="prediction-chip__value">{% if prediction.source == 'form' %}форма{% else %}CSV{% endif %}</span>
+                                </div>
+                                <div class="prediction-chip">
+                                    <span class="prediction-chip__label">Тип аномалии</span>
+                                    <span class="prediction-chip__value">{{ prediction.anomaly_label }}</span>
+                                </div>
+                                <div class="prediction-chip">
+                                    <span class="prediction-chip__label">Вероятность класса</span>
+                                    <span class="prediction-chip__value">{{ "%.2f"|format(prediction.predicted_probability * 100) }}%</span>
+                                </div>
+                            </div>
+                            <ul class="simple-list">
+                                {% for item in prediction.anomaly_probabilities %}
+                                    <li>
+                                        <span>{{ item.label }}</span>
+                                        <span>{{ "%.2f"|format(item.probability * 100) }}%</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            {% if prediction.suspicious is not none %}
+                                {% if prediction.suspicious %}
+                                    <div class="alert info">Подозрительная транзакция — вероятность {{ "%.1f"|format(prediction.suspicious_probability * 100) }}%</div>
+                                {% else %}
+                                    <div class="alert success">Вероятность аномалии низкая — {{ "%.1f"|format((1 - prediction.suspicious_probability) * 100) }}%</div>
+                                {% endif %}
+                            {% else %}
+                                <div class="alert info">Модель не обучена на нормальных транзакциях (класс NORMAL отсутствует).</div>
+                            {% endif %}
+
+                            {% if prediction.preprocessing_notes %}
+                                {% for prep_note in prediction.preprocessing_notes %}
+                                    <div class="alert info">{{ prep_note }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        <form method="get" action="/export-pdf" class="mt-6 flex justify-end">
+                            <input type="hidden" name="scope" value="single">
+                            <button class="button" type="submit">Экспорт прогноза в PDF</button>
+                        </form>
+                    </div>
+                {% endif %}
+            {% endif %}
         </section>
 
         {% if result %}
@@ -176,16 +220,13 @@
                     <h3>Основные метрики загруженного набора</h3>
                     <div class="metric-grid">
                         <div class="metric">
-                            <label>Объём</label>
                             <span>{{ result.records }} строк</span>
                         </div>
                         <div class="metric">
-                            <label>Признаки</label>
                             <span>{{ result.columns }}</span>
                         </div>
                         {% if result.prediction_counts %}
                             <div class="metric">
-                                <label>Классы модели</label>
                                 <span>{{ result.prediction_counts|length }}</span>
                             </div>
                         {% endif %}
