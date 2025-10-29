@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import List, Optional
 
 import pandas as pd
 from fastapi import File, Request, UploadFile
@@ -126,21 +127,37 @@ def register_routes(app) -> None:
                     notifications=store.last_analysis["notifications"] if store.last_analysis else [],
                 ),
             )
-        filenames = []
+        filenames: List[str] = []
+        supabase_warning: Optional[str] = None
         client = store.supabase_client
-        bucket = store.settings.supabase_bucket
         table_name = store.settings.supabase_table
-            ## Check if file is present in table
-        try:
-            schemas_splited = table_name.split(".")
-            schemas_table = schemas_splited[1]
-            schema = schemas_splited[0]
-            select_result = client.schema(schema).table(schemas_table).select('filename').execute().data
-            filenames = [result.get('filename') for result in select_result]
-            logger.info("Файл %s найден в Supabase таблице %s.", file.filename, bucket)
-        except Exception as exc:
-            logger.warning("Не удалось получить список файлов в таблице %s: %s", table_name, exc)
-            return None
+
+        if client is not None and table_name:
+            try:
+                if "." in table_name:
+                    schema_name, table_name_only = table_name.split(".", maxsplit=1)
+                    table_query = client.schema(schema_name).table(table_name_only)
+                else:
+                    table_query = client.table(table_name)
+                response = table_query.select("filename").execute()
+                select_result = getattr(response, "data", None) or []
+                filenames = [
+                    item.get("filename")
+                    for item in select_result
+                    if isinstance(item, dict) and item.get("filename")
+                ]
+                logger.info("Файл %s найден в Supabase таблице %s.", file.filename, table_name)
+            except Exception as exc:
+                logger.warning("Не удалось получить список файлов в таблице %s: %s", table_name, exc)
+                supabase_warning = f"Не удалось получить список файлов из Supabase: {exc}"
+        else:
+            logger.info("Supabase клиент не настроен — пропускаем проверку уникальности файлов.")
+
+        def merge_notifications(base_notifications: Optional[List[str]]) -> List[str]:
+            merged = list(base_notifications or [])
+            if supabase_warning:
+                merged.append(supabase_warning)
+            return merged
 
         if file.filename not in filenames:
             try:
@@ -154,7 +171,9 @@ def register_routes(app) -> None:
                         context=context,
                         result=store.last_analysis,
                         error=f"Ошибка при анализе данных: {exc}",
-                        notifications=store.last_analysis["notifications"] if store.last_analysis else [],
+                        notifications=merge_notifications(
+                            store.last_analysis["notifications"] if store.last_analysis else []
+                        ),
                     ),
                 )
             ingest_dataset(store, storage_df, file.filename, source="csv")
@@ -169,7 +188,7 @@ def register_routes(app) -> None:
                     context=context,
                     result=analysis,
                     error=None,
-                    notifications=analysis["notifications"],
+                    notifications=merge_notifications(analysis["notifications"]),
                     filename=file.filename,
                 ),
             )
@@ -182,7 +201,7 @@ def register_routes(app) -> None:
                     context=context,
                     result=None,
                     error="File is already uploaded",
-                    notifications=None,
+                    notifications=merge_notifications(None),
                     filename=file.filename,
                 ),
             ) 

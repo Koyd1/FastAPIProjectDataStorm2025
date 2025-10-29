@@ -172,7 +172,15 @@ def build_random_forest_visuals(aggregated_df: pd.DataFrame, context) -> Dict[st
         logger.warning("Не удалось обучить RandomForest: %s", exc)
         return {}
 
-    target_color=working["is_anomaly_ground_truth"].map({0: "Норма", 1: "Аномалия"})    
+    if "is_anomaly_ground_truth" in working.columns:
+        target_color = (
+            working["is_anomaly_ground_truth"]
+            .map({0: "Норма", 1: "Аномалия"})
+            .fillna("Норма")
+        )
+    else:
+        # Fallback: derive labels from модельных предсказаний
+        target_color = working["predicted_anomaly"].map(lambda label: "Норма" if str(label) == "NORMAL" else "Аномалия")
     # === PCA 2D ===
     try:
         embedding_2d = PCA(n_components=2).fit_transform(features)
