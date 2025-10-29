@@ -438,6 +438,7 @@ def register_routes(app) -> None:
 
         tmp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         doc = SimpleDocTemplate(tmp_pdf.name, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+        available_width = doc.width
 
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle(name="TitleRu", fontName="DejaVuSans", fontSize=18, leading=22, alignment=1, textColor=colors.darkblue))
@@ -482,14 +483,24 @@ def register_routes(app) -> None:
 
             if table_data:
                 num_cols = len(table_data[0])
-                col_widths = [480/num_cols]*num_cols
+                if num_cols == 0:
+                    num_cols = 1
+                col_width = max(40, available_width / num_cols)
+                total_width = col_width * num_cols
+                if total_width > available_width:
+                    col_width = available_width / num_cols
+                col_widths = [col_width] * num_cols
                 preview_table = Table(table_data, repeatRows=1, colWidths=col_widths)
                 preview_table.setStyle(TableStyle([
                     ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
                     ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
                     ("VALIGN", (0,0), (-1,-1), "TOP"),
+                    ("LEFTPADDING", (0,0), (-1,-1), 2),
+                    ("RIGHTPADDING", (0,0), (-1,-1), 2),
+                    ("TOPPADDING", (0,0), (-1,-1), 2),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 2),
                 ]))
-                story.append(KeepTogether(preview_table))
+                story.append(preview_table)
                 story.append(Spacer(1, 12))
 
         # Распределение классов

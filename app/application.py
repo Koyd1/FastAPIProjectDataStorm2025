@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
 from .config import Settings
 from .state import AppStore
@@ -60,6 +61,9 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Anomaly Analyzer", lifespan=lifespanmgr)
     templates = Jinja2Templates(directory=str(settings.templates_dir))
+    static_dir = settings.base_dir / "static"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     store = AppStore(settings=settings)
 
     # Ensure Supabase module logs are visible with default uvicorn logging.
