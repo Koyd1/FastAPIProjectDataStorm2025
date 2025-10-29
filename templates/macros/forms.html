@@ -1,0 +1,18 @@
+{% macro file_upload(input_id, field_name, target_id, label_text="Выбрать CSV-файл", accept=".csv", required=True) -%}
+<div class="file-upload">
+    <label class="file-upload-label" for="{{ input_id }}">
+        {{ label_text }}
+        <input
+            class="file-upload-input"
+            type="file"
+            id="{{ input_id }}"
+            name="{{ field_name }}"
+            data-filename-target="{{ target_id }}"
+            onchange="showFileName(event)"
+            {% if accept %}accept="{{ accept }}"{% endif %}
+            {% if required %}required{% endif %}
+        >
+    </label>
+    <span class="file-name" id="{{ target_id }}">Файл не выбран</span>
+</div>
+{%- endmacro %}
