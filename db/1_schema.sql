@@ -6,7 +6,7 @@ set search_path to anomaly, public;
 
 -- Table: upload_batches
 -- Stores metadata about each dataset uploaded through the web UI.
-create table if not exists upload_batches (
+create table upload_batches_table (
     id uuid primary key default gen_random_uuid(),
     filename text not null,
     object_key text not null unique,
@@ -16,16 +16,16 @@ create table if not exists upload_batches (
     notes text
 );
 
-comment on table upload_batches is
+comment on table upload_batches_table is
     'Metadata for sanitized CSV datasets saved to Supabase Storage.';
 
-comment on column upload_batches.filename is
+comment on column upload_batches_table.filename is
     'Original filename provided by the user (sanitized, without PII).';
 
-comment on column upload_batches.object_key is
+comment on column upload_batches_table.object_key is
     'Path to the CSV object stored in Supabase Storage bucket.';
 
-comment on column upload_batches.source is
+comment on column upload_batches_table.source is
     'Source of the upload: csv (default), single_csv_prediction, form_submission.';
 
 

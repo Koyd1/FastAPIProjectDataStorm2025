@@ -44,11 +44,12 @@
         }
 
         .masthead {
-            background: var(--surface);
-            border: 1px solid var(--border-color);
-            border-radius: 18px;
-            box-shadow: var(--shadow-sm);
-            padding: 28px 32px;
+            /* background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.64)); */
+            background: #2563eb;
+            color: #f8fafc;
+            padding: 32px;
+            border-radius: 22px;
+            box-shadow: var(--shadow-md);
             display: flex;
             justify-content: space-between;
             gap: 20px;
@@ -112,13 +113,83 @@
 
         .upload-form {
             display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
             align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
         .upload-form input[type="file"] {
             flex: 1 1 260px;
+        }
+        .upload-form .button {
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+        .file-upload {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 250px;
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-upload-label {
+            white-space: nowrap;
+        }
+
+
+        .file-upload-label:hover {
+            background: rgba(37, 99, 235, 0.08);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .file-upload-label::before {
+            content: "📂";
+            font-size: 18px;
+        }
+
+        .file-name {
+            flex-shrink: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text-muted);
+            font-size: 14px;
+            max-width: 100%;
+        }
+        @media (max-width: 640px) {
+            .upload-form {
+                flex-direction: column; /* переносим элементы в колонку */
+                align-items: stretch;   /* чтобы заняли всю ширину */
+                gap: 12px;
+            }
+
+            .file-upload {
+                width: 100%;
+            }
+
+            .upload-form .button {
+                width: 100%;
+                text-align: center;
+                font-size: 15px;
+                padding: 14px 0;
+            }
+
+            .file-name {
+                text-align: center;
+            }
         }
 
         .button {
@@ -278,9 +349,10 @@
         }
 
         .card-surface {
-            background: var(--surface-muted);
+            background: white;
             border-radius: 16px;
             padding: 20px 22px;
+            object-fit: contain;
             border: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
@@ -361,10 +433,30 @@
 
         .feature-grid {
             display: grid;
+            grid-template-columns: 1fr, 1fr;
             gap: 20px;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            align-items: start;
         }
-
+        .feature-grid {
+            display: grid;
+            gap: 24px;
+            grid-template-columns: repeat(2, 1fr);
+        }
+        @media (max-width: 900px) {
+            .feature-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+        }
+        .card-surface img.chart {
+            width: 100%;
+            height: 500px;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            max-height: 500px; 
+        }
         .form-grid {
             display: grid;
             gap: 18px;
@@ -451,8 +543,26 @@
                 align-items: flex-start;
             }
         }
+
     </style>
 </head>
+<script>
+function showFileName(event) {
+    const input = event.target;
+    const fileNameSpan = document.getElementById("fileName");
+    fileNameSpan.textContent = input.files.length ? input.files[0].name : "Файл не выбран";
+}
+
+// function validateFile() {
+//     const fileInput = document.getElementById("fileInput");
+//     if (!fileInput.files.length) {
+//         alert("Пожалуйста, выберите CSV-файл перед загрузкой.");
+//         return false;
+//     }
+//     return true;
+// }
+</script>
+
 <body>
 <div class="layout">
     <header class="masthead">
@@ -479,8 +589,15 @@
                 <p>Формат — CSV. Отсутствующие признаки будут заполнены автоматически, после чего появится интерактивный отчёт.</p>
             </div>
             <form method="post" action="/analyze" enctype="multipart/form-data" class="upload-form">
-                <input type="file" name="file" accept=".csv" required>
-                <button class="button" type="submit">Загрузить и проанализировать</button>
+                <div class="file-upload" style="position: relative; flex: 1; min-width: 250px; display: flex; align-items: center; gap: 12px;">
+                    <label for="fileInput" class="file-upload-label" style="position: relative; display: inline-block; padding: 8px 16px; cursor: pointer; border: 1px solid var(--border-color); border-radius: 10px;">
+                        Выбрать CSV-файл
+                        <input type="file" id="fileInput" name="file" accept=".csv" required onchange="showFileName(event)"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;">
+                    </label>
+                    <span class="file-name" id="fileName" style="flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 14px; max-width: 100%;">Файл не выбран</span>
+                </div>
+                <button class="button" type="submit" style="flex-shrink: 0;">Загрузить и проанализировать</button>
             </form>
             <form method="get" action="/export-pdf">
                 <button class="button" type="submit">📄 Экспорт в PDF</button>
@@ -754,10 +871,28 @@
                     </div>
                 {% endif %}
                 <div class="feature-grid">
-                    {% if rf_visuals.cluster_image %}
+                    {% if rf_visuals.cluster_image_2d and False %}
                         <div class="card-surface">
-                            <h3>Кластеры (PCA проекция)</h3>
-                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.cluster_image }}" alt="Random forest clusters">
+                            <h3>Кластеры (PCA проекция 2Д)</h3>
+                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.cluster_image_2d }}" alt="Random forest clusters two demensions">
+                        </div>
+                    {% endif %}
+					{% if rf_visuals.cluster_image_3d %}
+                        <div class="card-surface">
+                            <h3>Кластеры (PCA проекция 3Д)</h3>
+                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.cluster_image_3d }}" alt="Random forest clusters three demensions">
+                        </div>
+                    {% endif %}
+					{% if rf_visuals.correlation_heatmap %}
+                        <div class="card-surface">
+                            <h3>Тепловая карта корреляций</h3>
+                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.correlation_heatmap }}" alt="Heatmap of correlations">
+                        </div>
+                    {% endif %}
+					{% if rf_visuals.amount_kde_plot %}
+                        <div class="card-surface">
+                            <h3>Оценка плотности количества</h3>
+                            <img class="chart" src="data:image/png;base64,{{ rf_visuals.amount_kde_plot }}" alt="Kernel Density Estimation plot">
                         </div>
                     {% endif %}
                     {% if rf_visuals.feature_image %}

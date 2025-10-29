@@ -17,24 +17,18 @@ from .supabase_service import (
 )
 from .db_service import DatabaseService
 
+from contextlib import asynccontextmanager
+
 
 def create_app() -> FastAPI:
+
     settings = Settings()
-    app = FastAPI(title="Anomaly Analyzer")
-    templates = Jinja2Templates(directory=str(settings.templates_dir))
-    store = AppStore(settings=settings)
 
-    # Ensure Supabase module logs are visible with default uvicorn logging.
-    supabase_logger = logging.getLogger("app.supabase_service")
-    supabase_logger.setLevel(logging.INFO)
-    supabase_logger.propagate = True
+    # Creating lifespan manager
+    @asynccontextmanager
+    async def lifespanmgr(app: FastAPI):
+    # startup
 
-    app.state.settings = settings
-    app.state.templates = templates
-    app.state.store = store
-
-    @app.on_event("startup")
-    async def on_startup() -> None:
         context = load_model_context(settings)
         store.set_context(context)
         store.current_metadata = store.generate_metadata(None)
@@ -50,10 +44,60 @@ def create_app() -> FastAPI:
             if not history_df.empty:
                 update_aggregated_state(store, sanitize_dataframe_for_storage(history_df))
 
-    @app.on_event("shutdown")
-    async def on_shutdown() -> None:
+
+        yield
+
+        # shutdown
+
         if store.db_service is not None:
             store.db_service.close()
+
+
+        ##### end lifespanmgr
+
+
+
+
+    app = FastAPI(title="Anomaly Analyzer", lifespan=lifespanmgr)
+    templates = Jinja2Templates(directory=str(settings.templates_dir))
+    store = AppStore(settings=settings)
+
+    # Ensure Supabase module logs are visible with default uvicorn logging.
+    supabase_logger = logging.getLogger("app.supabase_service")
+    supabase_logger.setLevel(logging.INFO)
+    supabase_logger.propagate = True
+
+    app.state.settings = settings
+    app.state.templates = templates
+
+    app.state.store = store
+
+    # @app.on_event("startup")
+    # async def on_startup() -> None:
+    #     context = load_model_context(settings)
+    #     store.set_context(context)
+    #     store.current_metadata = store.generate_metadata(None)
+    #     store.supabase_client = init_supabase_client(settings)
+    #     if settings.database_enabled:
+    #         db_service = DatabaseService(settings.database_url)
+    #         db_service.init()
+    #         store.db_service = db_service
+    #     else:
+    #         store.db_service = None
+    #     if store.supabase_client is not None:
+    #         history_df = fetch_supabase_history(store)
+    #         if not history_df.empty:
+    #             update_aggregated_state(store, sanitize_dataframe_for_storage(history_df))
+
+    # @app.on_event("shutdown")
+    # async def on_shutdown() -> None:
+    #     if store.db_service is not None:
+    #         store.db_service.close()
+
+#**************************************************
+
+
+
 
     register_routes(app)
     return app

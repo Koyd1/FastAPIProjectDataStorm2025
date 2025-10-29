@@ -4,12 +4,14 @@ from datetime import datetime
 
 import pandas as pd
 from fastapi import File, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .analytics import analyze_dataset, prediction_summary, transform_single_record
 from .csv_utils import read_uploaded_dataframe
 from .forms import build_context, parse_form_to_record
 from .supabase_service import ingest_dataset
+import logging
+logger = logging.getLogger(__name__)
 
 from fastapi.responses import FileResponse
 from reportlab.lib import colors
@@ -62,6 +64,12 @@ def register_routes(app) -> None:
                 notifications=notifications,
             ),
         )
+
+    
+    @app.get("/analyze")
+    async def reroute_get_analyze():
+        return RedirectResponse(url="/", status_code=302)
+
 
     @app.post("/analyze", response_class=HTMLResponse)
     async def analyze_csv(request: Request, file: UploadFile = File(...)) -> HTMLResponse:
@@ -118,38 +126,66 @@ def register_routes(app) -> None:
                     notifications=store.last_analysis["notifications"] if store.last_analysis else [],
                 ),
             )
-
+        filenames = []
+        client = store.supabase_client
+        bucket = store.settings.supabase_bucket
+        table_name = store.settings.supabase_table
+            ## Check if file is present in table
         try:
-            analysis, storage_df = analyze_dataset(dataframe, context, store)
+            schemas_splited = table_name.split(".")
+            schemas_table = schemas_splited[1]
+            schema = schemas_splited[0]
+            select_result = client.schema(schema).table(schemas_table).select('filename').execute().data
+            filenames = [result.get('filename') for result in select_result]
+            logger.info("Файл %s найден в Supabase таблице %s.", file.filename, bucket)
         except Exception as exc:
+            logger.warning("Не удалось получить список файлов в таблице %s: %s", table_name, exc)
+            return None
+
+        if file.filename not in filenames:
+            try:
+                analysis, storage_df = analyze_dataset(dataframe, context, store)
+            except Exception as exc:
+                return templates.TemplateResponse(
+                    "index.html",
+                    build_context(
+                        request,
+                        store=store,
+                        context=context,
+                        result=store.last_analysis,
+                        error=f"Ошибка при анализе данных: {exc}",
+                        notifications=store.last_analysis["notifications"] if store.last_analysis else [],
+                    ),
+                )
+            ingest_dataset(store, storage_df, file.filename, source="csv")
+            store.last_analysis = analysis
+            store.current_metadata = analysis["metadata"]
+
             return templates.TemplateResponse(
                 "index.html",
                 build_context(
                     request,
                     store=store,
                     context=context,
-                    result=store.last_analysis,
-                    error=f"Ошибка при анализе данных: {exc}",
-                    notifications=store.last_analysis["notifications"] if store.last_analysis else [],
+                    result=analysis,
+                    error=None,
+                    notifications=analysis["notifications"],
+                    filename=file.filename,
                 ),
             )
-
-        ingest_dataset(store, storage_df, file.filename, source="csv")
-        store.last_analysis = analysis
-        store.current_metadata = analysis["metadata"]
-
-        return templates.TemplateResponse(
-            "index.html",
-            build_context(
-                request,
-                store=store,
-                context=context,
-                result=analysis,
-                error=None,
-                notifications=analysis["notifications"],
-                filename=file.filename,
-            ),
-        )
+        else:
+            return templates.TemplateResponse(
+                "index.html",
+                build_context(
+                    request,
+                    store=store,
+                    context=context,
+                    result=None,
+                    error="File is already uploaded",
+                    notifications=None,
+                    filename=file.filename,
+                ),
+            ) 
 
     @app.post("/predict", response_class=HTMLResponse)
     async def predict_single(request: Request, file: UploadFile = File(...)) -> HTMLResponse:
@@ -345,7 +381,7 @@ def register_routes(app) -> None:
         storage_df["is_suspicious"] = int(prediction["suspicious"])
         storage_df["analysis_run_at"] = datetime.utcnow().isoformat()
         storage_df["source_filename"] = "form_submission"
-        ingest_dataset(store, storage_df, "form_submission", source="form_submission")
+        # ingest_dataset(store, storage_df, "form_submission", source="form_submission")
 
         return templates.TemplateResponse(
             "index.html",
@@ -477,4 +513,3 @@ def register_routes(app) -> None:
 
         doc.build(story)
         return FileResponse(tmp_pdf.name, filename="dataset_analysis.pdf", media_type="application/pdf")
-
