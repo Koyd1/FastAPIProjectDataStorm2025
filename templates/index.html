@@ -54,7 +54,7 @@
                 <p>Передайте транзакцию через CSV или заполните форму вручную — ответ появится сразу.</p>
             </div>
 
-            <div class="quick-stack">
+            <div class="quick-stack" style="padding-bottom: 5px;">
                 <article class="quick-card quick-card--csv">
                     <div class="quick-card__header">
                         <span class="quick-card__eyebrow">CSV</span>
@@ -216,7 +216,7 @@
                     <p>Проверьте основные показатели, изучите предпросмотр и распределение предсказаний модели.</p>
                 </div>
 
-                <div class="card-surface">
+                <div class="card-surface" style="margin-bottom: 10px;">
                     <h3>Основные метрики загруженного набора</h3>
                     <div class="metric-grid">
                         <div class="metric">
@@ -241,7 +241,7 @@
                 </div>
 
                 {% if result.prediction_counts %}
-                    <div class="card-surface">
+                    <div class="card-surface" style="margin-top: 10px;">
                         <h3>Распределение предсказанных классов</h3>
                         <ul class="simple-list">
                             {% for label, count in result.prediction_counts.items() %}
@@ -255,7 +255,7 @@
                 {% endif %}
 
                 {% if result.average_probabilities %}
-                    <div class="card-surface">
+                    <div class="card-surface" style="margin-bottom: 10px; margin-top: 10px;">
                         <h3>Средние вероятности по классам</h3>
                         <ul class="simple-list">
                             {% for label, prob in result.average_probabilities.items() %}
@@ -333,7 +333,7 @@
                     {% endif %}
                 </div>
                 {% if rf_visuals.class_counts %}
-                    <div class="card-surface">
+                    <div class="card-surface" style="margin-bottom: 10px; margin-top: 10px;">
                         <h3>Распределение по классам (история)</h3>
                         <ul class="simple-list">
                             {% for label, count in rf_visuals.class_counts.items() %}

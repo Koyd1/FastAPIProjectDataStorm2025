@@ -21,6 +21,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+import hashlib
 import os
 import tempfile
 from bs4 import BeautifulSoup
@@ -133,6 +134,7 @@ def register_routes(app) -> None:
             )
 
         content = await file.read()
+        file_hash = hashlib.sha256(content).hexdigest()
 
         try:
             dataframe = read_uploaded_dataframe(content)
@@ -181,26 +183,17 @@ def register_routes(app) -> None:
                 merged.append(supabase_warning)
             return merged
 
-        if file.filename not in filenames:
-            try:
-                analysis, storage_df = analyze_dataset(dataframe, context, store)
-            except Exception as exc:
-                return templates.TemplateResponse(
-                    "index.html",
-                    build_context(
-                        request,
-                        store=store,
-                        context=context,
-                        result=store.last_analysis,
-                        error=f"Ошибка при анализе данных: {exc}",
-                        notifications=merge_notifications(
-                            store.last_analysis["notifications"] if store.last_analysis else []
-                        ),
-                    ),
-                )
-            ingest_dataset(store, storage_df, file.filename, source="csv")
-            store.last_analysis = analysis
-            store.current_metadata = analysis["metadata"]
+        cached_entry = store.dataset_cache.get(file_hash)
+        if cached_entry:
+            store.last_analysis = cached_entry["analysis"]
+            store.current_metadata = cached_entry["metadata"]
+            store.last_filename = file.filename
+            store.filename_to_hash[file.filename] = file_hash
+            cached_entry["filename"] = file.filename
+
+            cached_notifications = cached_entry.get("notifications")
+            notifications_list = merge_notifications(cached_notifications)
+            notifications_list.append("Использован ранее загруженный файл — показаны сохранённые результаты.")
 
             return templates.TemplateResponse(
                 "index.html",
@@ -208,25 +201,64 @@ def register_routes(app) -> None:
                     request,
                     store=store,
                     context=context,
-                    result=analysis,
+                    result=cached_entry["analysis"],
                     error=None,
-                    notifications=merge_notifications(analysis["notifications"]),
+                    notifications=notifications_list,
                     filename=file.filename,
                 ),
             )
-        else:
+
+        skip_ingest = file.filename in filenames
+
+        try:
+            analysis, storage_df = analyze_dataset(dataframe, context, store)
+        except Exception as exc:
             return templates.TemplateResponse(
                 "index.html",
                 build_context(
                     request,
                     store=store,
                     context=context,
-                    result=None,
-                    error="File is already uploaded",
-                    notifications=merge_notifications(None),
-                    filename=file.filename,
+                    result=store.last_analysis,
+                    error=f"Ошибка при анализе данных: {exc}",
+                    notifications=merge_notifications(
+                        store.last_analysis["notifications"] if store.last_analysis else []
+                    ),
                 ),
-            ) 
+            )
+
+        if not skip_ingest:
+            ingest_dataset(store, storage_df, file.filename, source="csv")
+        else:
+            logger.info("Пропускаем загрузку в Supabase для файла %s: уже существует.", file.filename)
+
+        store.last_analysis = analysis
+        store.current_metadata = analysis["metadata"]
+        store.last_filename = file.filename
+        store.dataset_cache[file_hash] = {
+            "analysis": analysis,
+            "metadata": analysis["metadata"],
+            "filename": file.filename,
+            "notifications": analysis.get("notifications"),
+        }
+        store.filename_to_hash[file.filename] = file_hash
+
+        notifications = merge_notifications(analysis.get("notifications"))
+        if skip_ingest:
+            notifications.append("Файл с таким именем уже присутствует — результаты обновлены без повторной загрузки.")
+
+        return templates.TemplateResponse(
+            "index.html",
+            build_context(
+                request,
+                store=store,
+                context=context,
+                result=analysis,
+                error=None,
+                notifications=notifications,
+                filename=file.filename,
+            ),
+        )
 
     @app.post("/predict", response_class=HTMLResponse)
     async def predict_single(request: Request, file: UploadFile = File(...)) -> HTMLResponse:
@@ -751,10 +783,10 @@ def register_routes(app) -> None:
         if suspicious is not None:
             if suspicious:
                 recommendation = (
-                    "Рекомендация: провести углублённую проверку транзакции и уведомить службу финконтроля."
+                    "FalcoNS"
                 )
             else:
-                recommendation = "Рекомендация: транзакция выглядит безопасно, но продолжайте мониторинг."
+                recommendation = "FalcoNS"
         if recommendation:
             story.append(Paragraph(recommendation, styles["Body"]))
 
