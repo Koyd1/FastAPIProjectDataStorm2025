@@ -220,16 +220,13 @@
                     <h3>Основные метрики загруженного набора</h3>
                     <div class="metric-grid">
                         <div class="metric">
-                            <label>Объём</label>
                             <span>{{ result.records }} строк</span>
                         </div>
                         <div class="metric">
-                            <label>Признаки</label>
                             <span>{{ result.columns }}</span>
                         </div>
                         {% if result.prediction_counts %}
                             <div class="metric">
-                                <label>Классы модели</label>
                                 <span>{{ result.prediction_counts|length }}</span>
                             </div>
                         {% endif %}
