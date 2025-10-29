@@ -154,11 +154,11 @@
             border-color: var(--accent);
             color: var(--accent);
         }
-
+/* 
         .file-upload-label::before {
             content: "📂";
             font-size: 18px;
-        }
+        } */
 
         .file-name {
             flex-shrink: 1;
@@ -600,7 +600,7 @@ function showFileName(event) {
                 <button class="button" type="submit" style="flex-shrink: 0;">Загрузить и проанализировать</button>
             </form>
             <form method="get" action="/export-pdf">
-                <button class="button" type="submit">📄 Экспорт в PDF</button>
+                <button class="button" type="submit">Экспорт в PDF</button>
             </form>
             {% if error %}
                 <div class="alert error">{{ error }}</div>
