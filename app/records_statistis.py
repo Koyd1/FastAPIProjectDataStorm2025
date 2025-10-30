@@ -28,7 +28,7 @@ def load_and_create_stats_graphs(store):
 
         stats_graphs = []
 
-        # Пример 1: Распределение количества транзакций по регионам
+        #Распределение количества транзакций по регионам
         if "region" in df.columns:
             fig, ax = plt.subplots(figsize=(8, 4))
             region_counts = df["region"].value_counts().nlargest(10)
@@ -45,7 +45,7 @@ def load_and_create_stats_graphs(store):
             img_base64 = base64.b64encode(img_buf.read()).decode()
             stats_graphs.append({"title": "Распределение транзакций по регионам (ТОП 10)", "image_base64": img_base64})
 
-        # Пример 2: Корреляционная матрица по числовым признакам
+        # Корреляционная матрица по числовым признакам
         numeric_cols = df.select_dtypes(include="number").columns.tolist()
         if "id" in numeric_cols:
             numeric_cols.remove("id")
@@ -71,7 +71,7 @@ def load_and_create_stats_graphs(store):
             img_base64 = base64.b64encode(img_buf.read()).decode()
             stats_graphs.append({"title": "Корреляционная матрица числовых признаков", "image_base64": img_base64})
 
-        # Пример 3: Распределение суммы транзакций
+        # Распределение суммы транзакций
         if "amount_mdl" in df.columns:
             fig, ax = plt.subplots(figsize=(8,4))
             sns.histplot(df["amount_mdl"], bins=50, kde=True, ax=ax)
