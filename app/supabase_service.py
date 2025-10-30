@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from unittest import result
 from uuid import uuid4
 
 import pandas as pd
@@ -381,3 +382,50 @@ def ingest_dataset(store, dataframe: pd.DataFrame, filename: Optional[str], sour
             row_count=len(sanitized),
             source=source,
         )
+
+def utf8_encode_dict(data):
+    if isinstance(data, dict):
+        return {k: utf8_encode_dict(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [utf8_encode_dict(item) for item in data]
+    elif isinstance(data, bytes):
+        return data.decode('utf-8', errors='replace')
+    elif isinstance(data, str):
+        try:
+            # Проверяем, может ли строка быть декодирована в ascii
+            data.encode('ascii')
+            return data
+        except UnicodeEncodeError:
+            # Если нет, декодируем её в utf-8
+            return data.encode('utf-8', errors='replace').decode('utf-8')
+    else:
+        return data
+
+
+def save_request_with_prediction(store, data: dict) -> Optional[dict]:
+    client = store.supabase_client
+    if client is None:
+        return None
+
+    clean_data = utf8_encode_dict(data)
+    table_name = store.settings.supabase_requests_table
+    schemas_splited = table_name.split(".")
+    schemas_table = schemas_splited[1]
+    schema = schemas_splited[0]
+    # result = client.rpc("get_current_user").execute()
+    # print(result)
+
+    try:
+        response = client.schema(schema).table(schemas_table).insert(clean_data).execute()
+        if "error" in response:
+            error_msg = str(response.error.message)
+            try:
+                error_msg.encode('ascii')
+            except UnicodeEncodeError:
+                error_msg = error_msg.encode('utf-8', errors='replace').decode('utf-8')
+            raise Exception(f"Ошибка записи в базу: {error_msg}")
+        return response.data
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении в таблицу {table_name}: {str(e)}")
+        raise
+

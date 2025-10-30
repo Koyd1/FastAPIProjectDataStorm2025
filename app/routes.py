@@ -7,10 +7,13 @@ import pandas as pd
 from fastapi import File, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app.preprocessing import clean_column_values
+
 from .analytics import analyze_dataset, prediction_summary, transform_single_record
+from .records_statistis import load_and_create_stats_graphs
 from .csv_utils import read_uploaded_dataframe
 from .forms import build_context, parse_form_to_record
-from .supabase_service import ingest_dataset
+from .supabase_service import ingest_dataset, save_request_with_prediction
 import logging
 logger = logging.getLogger(__name__)
 
@@ -77,6 +80,7 @@ def register_routes(app) -> None:
             )
 
         notifications = store.last_analysis["notifications"] if store.last_analysis else []
+        
         return templates.TemplateResponse(
             "index.html",
             build_context(
@@ -333,7 +337,7 @@ def register_routes(app) -> None:
                     prediction_error="CSV должен содержать ровно одну запись.",
                 ),
             )
-
+        dataframe, clean_notifications = clean_column_values(dataframe)
         try:
             features, prep_notifications = transform_single_record(dataframe, context)
         except Exception as exc:
@@ -364,8 +368,28 @@ def register_routes(app) -> None:
         storage_df["is_suspicious"] = int(prediction["suspicious"])
         storage_df["analysis_run_at"] = datetime.utcnow().isoformat()
         storage_df["source_filename"] = file.filename
-        ingest_dataset(store, storage_df, file.filename, source="single_csv_prediction")
+        # ingest_dataset(store, storage_df, file.filename, source="single_csv_prediction")
 
+        record_to_save = dataframe.iloc[0].to_dict()
+        record_to_save["predicted_class"] = prediction["anomaly_label"]
+        record_to_save["class_probability"] = int(prediction["suspicious"])
+        
+        try:
+            save_request_with_prediction(store,record_to_save)
+        except Exception as e:
+            return templates.TemplateResponse(
+                "index.html",
+                build_context(
+                    request,
+                    store=store,
+                    context=context,
+                    result=store.last_analysis,
+                    error=None,
+                    notifications=store.last_analysis["notifications"] if store.last_analysis else [],
+                    prediction=prediction,
+                    prediction_error=f"Ошибка при сохранении результата: {e}",
+                ),
+            )
         return templates.TemplateResponse(
             "index.html",
             build_context(
@@ -427,8 +451,9 @@ def register_routes(app) -> None:
                     form_values=form_dict,
                 ),
             )
-
+        
         record_df = pd.DataFrame([record])
+        record_df, clean_notifications = clean_column_values(record_df)
         try:
             features, prep_notifications = transform_single_record(record_df, context)
         except Exception as exc:
@@ -461,7 +486,29 @@ def register_routes(app) -> None:
         storage_df["analysis_run_at"] = datetime.utcnow().isoformat()
         storage_df["source_filename"] = "form_submission"
         # ingest_dataset(store, storage_df, "form_submission", source="form_submission")
+        # Сохраняем запись с предсказанием в Supabase (аналогично /predict)
+        record_to_save = record_df.iloc[0].to_dict()
+        record_to_save["predicted_class"] = prediction["anomaly_label"]
+        record_to_save["class_probability"] = int(prediction["suspicious"])
 
+        try:
+            save_request_with_prediction(store, record_to_save)
+        except Exception as e:
+            return templates.TemplateResponse(
+                "index.html",
+                build_context(
+                    request,
+                    store=store,
+                    context=context,
+                    result=store.last_analysis,
+                    error=None,
+                    notifications=store.last_analysis["notifications"] if store.last_analysis else [],
+                    prediction=prediction,
+                    prediction_error=f"Ошибка при сохранении результата: {e}",
+                    form_values=form_dict,
+                ),
+            )
+        
         return templates.TemplateResponse(
             "index.html",
             build_context(
