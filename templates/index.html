@@ -25,7 +25,7 @@
     <main class="content">
         <section class="card card-accent" id="upload">
             <div class="section-heading" style="padding-bottom: 10px;">
-                <h2>1. Загрузите первоначальный набор транзакций</h2>
+                <h2>Загрузите первоначальный набор транзакций</h2>
                 <p>Формат — CSV. Отсутствующие признаки будут заполнены автоматически, после чего появится интерактивный отчёт.<br></p>
             </div>
             <form method="post" action="/analyze" enctype="multipart/form-data" class="upload-form">
@@ -50,7 +50,7 @@
         <section class="card" id="single-upload">
             <div class="section-heading" style="
     padding-bottom: 10px;">
-                <h2>2. Быстрый прогноз по одной записи</h2>
+                <h2>Быстрый прогноз по одной записи</h2>
                 <p>Передайте транзакцию через CSV или заполните форму вручную — ответ появится сразу.</p>
             </div>
 
@@ -212,7 +212,7 @@
         {% if result %}
             <section class="card" id="dataset">
                 <div class="section-heading">
-                    <h2>3. Сводка по загруженному датасету</h2>
+                    <h2>Сводка по загруженному датасету</h2>
                     <p>Проверьте основные показатели, изучите предпросмотр и распределение предсказаний модели.</p>
                 </div>
 
@@ -287,7 +287,7 @@
         {% if importance_image or top_features %}
             <section class="card" id="features">
                 <div class="section-heading">
-                    <h2>4. Важность признаков модели</h2>
+                    <h2>Важность признаков модели</h2>
                     <p>Используйте визуализацию и рейтинг, чтобы объяснить решения модели и выявить критичные признаки.</p>
                 </div>
                 <div class="feature-grid">
@@ -317,7 +317,7 @@
         {% if rf_visuals %}
             <section class="card" id="global-insights">
                 <div class="section-heading">
-                    <h2>6. Кластеризация (Random Forest)</h2>
+                    <h2>Кластеризация (Random Forest)</h2>
                     <p>Интерактивные инсайты по всем загруженным наборам данных. Кластеры формируются заново после каждой загрузки.</p>
                 </div>
                 <div class="metric-grid">
@@ -379,6 +379,26 @@
                 </div>
             </section>
         {% endif %}
+        <section class="card" id="stats-graphs">
+             <div class="section-heading">
+                <h2>Статистика добавленных транзакций</h2>
+                <p>Графики с различными статистическими показателями по загруженным транзакциям.</p>
+            </div>
+            <div class="card-surface">
+
+                {% if stats_graphs %}
+                    {% for graph in stats_graphs %}
+                        <div style="margin-bottom: 20px;">
+                            <h3>{{ graph.title }}</h3>
+                            <img class="chart" src="data:image/png;base64,{{ graph.image_base64 }}" alt="{{ graph.title }}">
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>Графики будут отображены здесь после загрузки данных.</p>
+                {% endif %}
+            </div>
+        </section>
+
     </main>
 </div>
 {% endblock %}

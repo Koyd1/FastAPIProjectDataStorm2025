@@ -37,6 +37,11 @@ def build_context(
 
     resolved_filename = store.last_filename if filename is None else filename
 
+    from .records_statistis import load_and_create_stats_graphs
+    
+    # Загружаем статистические графики
+    stats_graphs = load_and_create_stats_graphs(store)
+    
     return {
         "request": request,
         "result": result,
@@ -50,6 +55,7 @@ def build_context(
         "importance_image": context.importance_image,
         "top_features": context.importance_df.head(store.settings.top_feature_list_count).to_dict("records"),
         "rf_visuals": store.rf_visuals or {},
+        "stats_graphs": stats_graphs,  # Добавляем графики в контекст
     }
 
 

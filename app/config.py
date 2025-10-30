@@ -30,6 +30,7 @@ class Settings:
     supabase_bucket: str = field(default_factory=lambda: os.getenv("SUPABASE_BUCKET", "anomaly-uploads"))
     supabase_table: str = field(default_factory=lambda: os.getenv("SUPABASE_TABLE", "anomaly.upload_batches_table"))
     supabase_snapshots_table: str = field(default_factory=lambda: os.getenv("SUPABASE_SNAPSHOTS_TABLE", "anomaly.rf_snapshots"))
+    supabase_requests_table: str = field(default_factory=lambda: os.getenv("SUPABASE_REQUESTS_TABLE", "anomaly.prediction_requests"))
     database_url: Optional[str] = field(default_factory=lambda: os.getenv("DATABASE_URL"))
     model_dir: Path = field(init=False)
     model_path: Path = field(init=False)
