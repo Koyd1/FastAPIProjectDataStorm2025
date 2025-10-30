@@ -223,11 +223,12 @@
                             <span>{{ result.records }} строк</span>
                         </div>
                         <div class="metric">
-                            <span>{{ result.columns }}</span>
+                            <span>{{ result.columns }} столбцов</span>
+
                         </div>
                         {% if result.prediction_counts %}
                             <div class="metric">
-                                <span>{{ result.prediction_counts|length }}</span>
+                                <span>{{ result.prediction_counts|length }} классов обнаружено</span>
                             </div>
                         {% endif %}
                     </div>
